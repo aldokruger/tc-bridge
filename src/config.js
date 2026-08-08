@@ -26,6 +26,7 @@ export function loadConfig(flags = {}) {
 		tunnel: flags.tunnel || env.TC_TUNNEL || "localtunnel",
 		publicUrl: flags.publicUrl || env.TC_PUBLIC_URL || "",
 		tunnelHost: flags.tunnelHost || env.TC_TUNNEL_HOST || "",
+		cloudflaredPath: flags.cloudflaredPath || env.TC_CLOUDFLARED_PATH || "",
 	};
 	if (allowWrite && config.writePaths.length === 0) {
 		throw new Error(

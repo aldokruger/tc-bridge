@@ -16,7 +16,7 @@ const program = new Command()
 	.option("--port <port>", "Porta de escuta (default 4100)", "4100")
 	.option(
 		"--tunnel <mode>",
-		"Modo de tunel: localtunnel | static (env TC_TUNNEL)",
+		"Modo de tunel: localtunnel | cloudflared | static (env TC_TUNNEL)",
 	)
 	.option(
 		"--public-url <url>",
@@ -26,6 +26,11 @@ const program = new Command()
 	.option(
 		"--tunnel-host <host>",
 		"Servidor localtunnel alternativo (env TC_TUNNEL_HOST)",
+		"",
+	)
+	.option(
+		"--cloudflared-path <path>",
+		"Caminho do executavel cloudflared (env TC_CLOUDFLARED_PATH)",
 		"",
 	)
 	.option("--allow-write", "Habilita escrita (env TC_ALLOW_WRITE=1)")
@@ -50,6 +55,7 @@ const cfg = loadConfig({
 	tunnel: opts.tunnel,
 	publicUrl: opts.publicUrl,
 	tunnelHost: opts.tunnelHost,
+	cloudflaredPath: opts.cloudflaredPath,
 	allowWrite: opts.allowWrite,
 	writePaths: opts.writePaths,
 	staging: opts.staging,
