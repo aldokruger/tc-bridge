@@ -23,6 +23,11 @@ const program = new Command()
 		"URL publica fixa (usada com --tunnel static)",
 		"",
 	)
+	.option(
+		"--tunnel-host <host>",
+		"Servidor localtunnel alternativo (env TC_TUNNEL_HOST)",
+		"",
+	)
 	.option("--allow-write", "Habilita escrita (env TC_ALLOW_WRITE=1)")
 	.option(
 		"--write-paths <paths>",
@@ -44,6 +49,7 @@ const cfg = loadConfig({
 	port: opts.port,
 	tunnel: opts.tunnel,
 	publicUrl: opts.publicUrl,
+	tunnelHost: opts.tunnelHost,
 	allowWrite: opts.allowWrite,
 	writePaths: opts.writePaths,
 	staging: opts.staging,

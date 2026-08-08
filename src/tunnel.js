@@ -17,9 +17,17 @@ export async function startTunnel(cfg, port) {
 				"Modulo 'localtunnel' nao instalado. Rode 'npm install localtunnel' ou use TC_TUNNEL=static + TC_PUBLIC_URL.",
 			);
 		}
-		const tunnel = await localtunnel(port, {
-			subdomain: generateSubdomain(),
-		});
+		const TUNNEL_TIMEOUT_MS = 20_000;
+		const tunnel = await withTimeout(
+			localtunnel(port, {
+				subdomain: generateSubdomain(),
+				...(cfg.tunnelHost ? { host: cfg.tunnelHost } : {}),
+			}),
+			TUNNEL_TIMEOUT_MS,
+			`Local tunnel não respondeu em ${TUNNEL_TIMEOUT_MS / 1000}s. ` +
+				"Provável bloqueio de proxy/firewall na rede de upgrade. " +
+				"Tente TC_TUNNEL=static + TC_PUBLIC_URL, ou TC_TUNNEL_HOST alternativo.",
+		);
 		return {
 			url: tunnel.url,
 			mode: "localtunnel",
@@ -28,6 +36,14 @@ export async function startTunnel(cfg, port) {
 	}
 
 	throw new Error(`Tipo de tunel desconhecido: ${cfg.tunnel}`);
+}
+
+function withTimeout(promise, ms, message) {
+	let timer;
+	const timeout = new Promise((_, reject) => {
+		timer = setTimeout(() => reject(new Error(message)), ms);
+	});
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function generateSubdomain() {

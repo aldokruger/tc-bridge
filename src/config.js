@@ -25,6 +25,7 @@ export function loadConfig(flags = {}) {
 		staging: flags.staging || env.TC_STAGING_DIR || path.join(".", "staging"),
 		tunnel: flags.tunnel || env.TC_TUNNEL || "localtunnel",
 		publicUrl: flags.publicUrl || env.TC_PUBLIC_URL || "",
+		tunnelHost: flags.tunnelHost || env.TC_TUNNEL_HOST || "",
 	};
 	if (allowWrite && config.writePaths.length === 0) {
 		throw new Error(
