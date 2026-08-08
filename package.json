@@ -1,0 +1,37 @@
+{
+  "name": "tc-bridge",
+  "version": "0.1.0",
+  "description": "MCP bridge TCP/HTTP para acessar arquivos de upgrade de Teamcenter (roda na maquina com dados, sobe tunel outbound)",
+  "type": "module",
+  "bin": {
+    "tc-bridge": "bin/tc-bridge.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    ".env.example"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bin/tc-bridge.js"
+  },
+  "keywords": [
+    "teamcenter",
+    "mcp",
+    "bridge",
+    "upgrade"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "commander": "^14.0.0",
+    "dotenv": "^17.2.0",
+    "express": "^4.21.2",
+    "zod": "^3.25.0"
+  },
+  "optionalDependencies": {
+    "localtunnel": "^2.0.2"
+  }
+}
