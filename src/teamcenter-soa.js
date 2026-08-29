@@ -81,6 +81,7 @@ function runAdapter(request, cfg) {
 		const classpath = [
 			cfg.teamcenterSoaAdapterJar,
 			path.join(cfg.teamcenterSoaLib, "*"),
+			...cfg.teamcenterSoaExtraJars,
 		].join(cfg.pathSeparator);
 		const child = spawn(
 			cfg.teamcenterJava,

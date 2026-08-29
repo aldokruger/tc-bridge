@@ -115,6 +115,7 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `TC_ALLOW_TEAMCENTER_READ` | `0` | Habilita consultas SOA predefinidas, somente leitura |
 | `TC_TEAMCENTER_URL` / `TC_TEAMCENTER_USER` / `TC_TEAMCENTER_PASSWORD` | — | WebTier e conta técnica SOA; obrigatórios quando habilitado |
 | `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR` | — | Diretório oficial dos jars SOA e jar compilado do adaptador |
+| `TC_TEAMCENTER_SOA_EXTRA_JARS` | — | JARs extras do cliente SOA, separados por `;` (por exemplo, Log4j) |
 
 ## Ferramentas MCP expostas
 
@@ -151,6 +152,11 @@ $env:TC_TEAMCENTER_SOA_LIB = 'E:\PLM\Teamcenter2606\TcFTSIndexer\lib'
 Configure o caminho produzido em `TC_TEAMCENTER_SOA_ADAPTER_JAR` e habilite
 `TC_ALLOW_TEAMCENTER_READ=1`. Use uma conta SOA dedicada, sem privilégios de
 escrita, e nunca forneça `TC_TEAMCENTER_PASSWORD` na linha de comando.
+
+Quando a instalação SOA não mantiver Log4j no diretório configurado em
+`TC_TEAMCENTER_SOA_LIB`, inclua explicitamente os JARs `log4j-api` e
+`log4j-core` da mesma distribuição do Teamcenter em
+`TC_TEAMCENTER_SOA_EXTRA_JARS`.
 
 ### Diagnóstico MSSQL
 

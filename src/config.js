@@ -66,6 +66,9 @@ export function loadConfig(flags = {}) {
 		teamcenterSoaAdapterJar:
 			flags.teamcenterSoaAdapterJar || env.TC_TEAMCENTER_SOA_ADAPTER_JAR || "",
 		teamcenterSoaLib: flags.teamcenterSoaLib || env.TC_TEAMCENTER_SOA_LIB || "",
+		teamcenterSoaExtraJars: commaList(
+			flags.teamcenterSoaExtraJars || env.TC_TEAMCENTER_SOA_EXTRA_JARS,
+		),
 		pathSeparator: process.platform === "win32" ? ";" : ":",
 		dbServer: flags.dbServer || env.TC_DB_SERVER || "",
 		dbPort: optionalPort(flags.dbPort || env.TC_DB_PORT, "TC_DB_PORT"),
