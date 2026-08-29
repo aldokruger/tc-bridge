@@ -9,6 +9,44 @@ function isInitializeRequest(body) {
 	return body && body.method === "initialize";
 }
 
+// Aceita tanto o tipo nativo (numero/boolean via JSON-RPC) quanto a
+// representacao em string (caso o cliente MCP serialize tudo como texto).
+const zNumberLike = z.preprocess((value) => {
+	if (
+		typeof value === "string" &&
+		value.trim() !== "" &&
+		!Number.isNaN(Number(value))
+	) {
+		return Number(value);
+	}
+	return value;
+}, z.number());
+
+const zBooleanLike = z.preprocess((value) => {
+	if (typeof value === "string") {
+		if (value.toLowerCase() === "true") return true;
+		if (value.toLowerCase() === "false") return false;
+	}
+	return value;
+}, z.boolean());
+
+function zodForType(type) {
+	const optional = type.endsWith("?");
+	const base = optional ? type.slice(0, -1) : type;
+	let schema;
+	switch (base) {
+		case "number":
+			schema = zNumberLike;
+			break;
+		case "boolean":
+			schema = zBooleanLike;
+			break;
+		default:
+			schema = z.string();
+	}
+	return optional ? schema.optional() : schema;
+}
+
 function safeEqual(a, b) {
 	const ha = crypto.createHash("sha256").update(a).digest();
 	const hb = crypto.createHash("sha256").update(b).digest();
@@ -21,14 +59,10 @@ function safeEqual(a, b) {
  * cada sessao (initialize), como o proprio erro recomenda.
  */
 function buildMcpServer(tools) {
-	const server = new McpServer({ name: "tc-bridge", version: "0.1.0" });
+	const server = new McpServer({ name: "tc-bridge", version: "0.2.0" });
 	for (const [name, tool] of Object.entries(tools)) {
 		const shape = Object.fromEntries(
-			Object.entries(tool.input).map(([key, type]) => {
-				const optional = type.endsWith("?");
-				const base = z.string();
-				return [key, optional ? base.optional() : base];
-			}),
+			Object.entries(tool.input).map(([key, type]) => [key, zodForType(type)]),
 		);
 		server.tool(name, tool.description, shape, async (args) => {
 			try {

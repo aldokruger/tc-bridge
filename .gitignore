@@ -1,5 +1,7 @@
 node_modules/
 .env
+tc-bridge.remote.mcp.json
+build/
 staging/
 *.log
 
