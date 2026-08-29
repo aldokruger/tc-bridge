@@ -114,7 +114,7 @@ public final class TeamcenterSoaAdapter {
         if (value == null) return "null";
         if (value instanceof String text) return jsonString(text);
         if (value instanceof Number || value instanceof Boolean) return value.toString();
-        if (value instanceof ModelObject object) return "{\"uid\":" + jsonString(object.getUid()) + ",\"type\":" + jsonString(object.getType()) + "}";
+        if (value instanceof ModelObject object) return "{\"uid\":" + jsonString(object.getUid()) + "}";
         if (depth >= 4) return jsonString("[truncated]");
         if (value.getClass().isArray()) {
             int length = Math.min(Array.getLength(value), 200);
