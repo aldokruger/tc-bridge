@@ -115,6 +115,8 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `TC_ALLOW_TEAMCENTER_READ` | `0` | Habilita consultas SOA predefinidas, somente leitura |
 | `TC_TEAMCENTER_URL` / `TC_TEAMCENTER_USER` / `TC_TEAMCENTER_PASSWORD` | — | WebTier e conta técnica SOA; obrigatórios quando habilitado |
 | `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR` | — | Diretório oficial dos jars SOA e jar compilado do adaptador |
+| `TC_ALLOW_BROWSER_DIAGNOSTICS` | `0` | Habilita diagnósticos Chrome DevTools somente leitura |
+| `TC_BROWSER_DEVTOOLS_URL` | `http://127.0.0.1:9222` | Endpoint CDP local; aceita somente loopback |
 | `TC_TEAMCENTER_SOA_EXTRA_JARS` | — | JARs extras do cliente SOA, separados por `;` (por exemplo, Log4j) |
 
 ## Ferramentas MCP expostas
@@ -132,6 +134,31 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `run_diagnostic`  | Opcional; somente `path_exists`, `service_status` e `tcp_connect` — não aceita comandos arbitrários       |
 | `run_db_diagnostic` | Opcional; apenas consultas MSSQL predefinidas e somente leitura — não aceita SQL arbitrário |
 | `tc_soa_read` | Opcional; consultas Teamcenter SOA predefinidas e somente leitura |
+| `browser_status` / `browser_pages` | Opcional; estado e páginas de um Chrome local em depuração |
+| `browser_capture_diagnostics` / `browser_performance` | Opcional; Console/Network novos e métricas, somente leitura |
+
+### Diagnóstico do navegador AWC
+
+O agente de navegador é opcional e fica desabilitado por padrão. Ele só aceita
+o endpoint Chrome DevTools em `localhost`, `127.0.0.1` ou `::1`; portanto, o
+bridge não pode ser usado para alcançar navegadores de terceiros nem para
+publicar a porta CDP.
+
+Inicie um Chrome com perfil isolado na máquina que possui o navegador a ser
+diagnosticado:
+
+```powershell
+$chrome = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+& $chrome --remote-debugging-port=9222 `
+  --user-data-dir="$env:TEMP\tc-awc-debug-profile" `
+  'http://172.18.2.221:3000'
+```
+
+Em seguida, habilite `TC_ALLOW_BROWSER_DIAGNOSTICS=1` e reinicie o tc-bridge.
+As ferramentas permitem listar páginas, capturar por no máximo 15 segundos
+eventos novos de Console/Network e consultar métricas de performance. Elas não
+executam JavaScript, não automatizam cliques e não retornam cookies,
+armazenamento local, corpos de requisição ou query strings.
 
 ### Consultas Teamcenter SOA
 

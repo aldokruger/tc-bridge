@@ -45,6 +45,15 @@ const program = new Command()
 		"--allow-db-diagnostics",
 		"Habilita diagnosticos MSSQL somente leitura (env TC_ALLOW_DB_DIAGNOSTICS=1)",
 	)
+	.option(
+		"--allow-browser-diagnostics",
+		"Habilita diagnosticos Chrome CDP somente leitura (env TC_ALLOW_BROWSER_DIAGNOSTICS=1)",
+	)
+	.option(
+		"--browser-devtools-url <url>",
+		"URL Chrome CDP local (env TC_BROWSER_DEVTOOLS_URL; somente loopback)",
+		"",
+	)
 	.option("--db-server <host>", "Host MSSQL (env TC_DB_SERVER)", "")
 	.option("--db-port <port>", "Porta MSSQL (env TC_DB_PORT)", "")
 	.option("--db-name <name>", "Base MSSQL (env TC_DB_NAME)", "")
@@ -137,6 +146,8 @@ program.action(async () => {
 		allowWrite: opts.allowWrite,
 		allowDiagnostics: opts.allowDiagnostics,
 		allowDbDiagnostics: opts.allowDbDiagnostics,
+		allowBrowserDiagnostics: opts.allowBrowserDiagnostics,
+		browserDevtoolsUrl: opts.browserDevtoolsUrl,
 		dbServer: opts.dbServer,
 		dbPort: opts.dbPort,
 		dbName: opts.dbName,

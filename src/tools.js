@@ -5,6 +5,7 @@ import { isWithinAllowed } from "./config.js";
 import { runDiagnostic } from "./diagnostics.js";
 import { runDbDiagnostic } from "./db-diagnostics.js";
 import { runTeamcenterRead } from "./teamcenter-soa.js";
+import { makeBrowserTools } from "./browser-agent.js";
 
 const MAX_READ_BYTES = 2_000_000;
 const LATIN1 = new TextDecoder("iso-8859-1");
@@ -464,6 +465,10 @@ export function makeTools(cfg) {
 				return runTeamcenterRead(request, cfg);
 			},
 		};
+	}
+
+	if (cfg.allowBrowserDiagnostics) {
+		Object.assign(tools, makeBrowserTools(cfg));
 	}
 
 	return tools;

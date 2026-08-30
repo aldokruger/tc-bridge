@@ -48,6 +48,8 @@ export function loadConfig(flags = {}) {
 		flags.allowDbDiagnostics || env.TC_ALLOW_DB_DIAGNOSTICS === "1";
 	const allowTeamcenterRead =
 		flags.allowTeamcenterRead || env.TC_ALLOW_TEAMCENTER_READ === "1";
+	const allowBrowserDiagnostics =
+		flags.allowBrowserDiagnostics || env.TC_ALLOW_BROWSER_DIAGNOSTICS === "1";
 	const config = {
 		token,
 		host: flags.host || env.TC_HOST || "127.0.0.1",
@@ -56,6 +58,11 @@ export function loadConfig(flags = {}) {
 		allowDiagnostics,
 		allowDbDiagnostics,
 		allowTeamcenterRead,
+		allowBrowserDiagnostics,
+		browserDevtoolsUrl:
+			flags.browserDevtoolsUrl ||
+			env.TC_BROWSER_DEVTOOLS_URL ||
+			"http://127.0.0.1:9222",
 		teamcenterUrl: flags.teamcenterUrl || env.TC_TEAMCENTER_URL || "",
 		teamcenterUser: flags.teamcenterUser || env.TC_TEAMCENTER_USER || "",
 		teamcenterPassword: flags.teamcenterPassword || env.TC_TEAMCENTER_PASSWORD || "",

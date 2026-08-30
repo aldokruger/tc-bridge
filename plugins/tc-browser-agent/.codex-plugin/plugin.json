@@ -1,0 +1,17 @@
+{
+  "name": "tc-browser-agent",
+  "version": "0.1.0",
+  "description": "Diagnostico seguro de Chrome DevTools para sessoes AWC acessadas pelo tc-bridge",
+  "author": {
+    "name": "tc-bridge"
+  },
+  "interface": {
+    "displayName": "TC Browser Agent",
+    "shortDescription": "Diagnostico seguro de Chrome para Active Workspace.",
+    "longDescription": "Adiciona diagnosticos de Console, Network e Performance de um Chrome local ao endpoint autenticado do tc-bridge.",
+    "developerName": "tc-bridge",
+    "category": "Productivity",
+    "capabilities": ["Read"],
+    "defaultPrompt": "Diagnostique a pagina AWC aberta no Chrome local."
+  }
+}
