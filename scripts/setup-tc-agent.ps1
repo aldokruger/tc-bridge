@@ -94,6 +94,15 @@ function New-RandomToken {
   return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
+function ConvertTo-EnvFlag {
+  param([Parameter(Mandatory)][bool]$Enabled)
+
+  if ($Enabled) {
+    return '1'
+  }
+  return '0'
+}
+
 function Assert-ExistingFile {
   param(
     [Parameter(Mandatory)][string]$Path,
@@ -189,22 +198,22 @@ Add-EnvValue -Lines $lines -Name 'TC_TOKEN' -Value $token
 Add-EnvValue -Lines $lines -Name 'TC_HOST' -Value $ListenHost
 Add-EnvValue -Lines $lines -Name 'TC_PORT' -Value $ListenPort
 Add-EnvValue -Lines $lines -Name 'TC_ALLOWED_READ_PATHS' -Value ($AllowedReadPaths -join ';')
-Add-EnvValue -Lines $lines -Name 'TC_ALLOW_WRITE' -Value ([int]$EnableWrite)
+Add-EnvValue -Lines $lines -Name 'TC_ALLOW_WRITE' -Value (ConvertTo-EnvFlag -Enabled $EnableWrite.IsPresent)
 Add-EnvValue -Lines $lines -Name 'TC_ALLOWED_WRITE_PATHS' -Value ($AllowedWritePaths -join ';')
 Add-EnvValue -Lines $lines -Name 'TC_STAGING_DIR' -Value $StagingDirectory
-Add-EnvValue -Lines $lines -Name 'TC_ALLOW_DIAGNOSTICS' -Value ([int]$EnableDiagnostics)
+Add-EnvValue -Lines $lines -Name 'TC_ALLOW_DIAGNOSTICS' -Value (ConvertTo-EnvFlag -Enabled $EnableDiagnostics.IsPresent)
 Add-EnvValue -Lines $lines -Name 'TC_DIAGNOSTIC_HOSTS' -Value ($DiagnosticHosts -join ';')
-Add-EnvValue -Lines $lines -Name 'TC_ALLOW_DB_DIAGNOSTICS' -Value ([int]$EnableDbDiagnostics)
+Add-EnvValue -Lines $lines -Name 'TC_ALLOW_DB_DIAGNOSTICS' -Value (ConvertTo-EnvFlag -Enabled $EnableDbDiagnostics.IsPresent)
 Add-EnvValue -Lines $lines -Name 'TC_DB_SERVER' -Value $DbServer
 Add-EnvValue -Lines $lines -Name 'TC_DB_PORT' -Value $DbPort
 Add-EnvValue -Lines $lines -Name 'TC_DB_NAME' -Value $DbName
 Add-EnvValue -Lines $lines -Name 'TC_DB_USER' -Value $DbUser
 Add-EnvValue -Lines $lines -Name 'TC_DB_PASSWORD' -Value (ConvertFrom-SecureValue $DbPassword)
 Add-EnvValue -Lines $lines -Name 'TC_DB_ENCRYPT' -Value 'true'
-Add-EnvValue -Lines $lines -Name 'TC_DB_TRUST_SERVER_CERTIFICATE' -Value ([bool]$TrustDbServerCertificate).ToString().ToLowerInvariant()
+Add-EnvValue -Lines $lines -Name 'TC_DB_TRUST_SERVER_CERTIFICATE' -Value (ConvertTo-EnvFlag -Enabled $TrustDbServerCertificate.IsPresent)
 Add-EnvValue -Lines $lines -Name 'TC_DB_CONNECT_TIMEOUT_MS' -Value $DbConnectTimeoutMs
 Add-EnvValue -Lines $lines -Name 'TC_DB_REQUEST_TIMEOUT_MS' -Value $DbRequestTimeoutMs
-Add-EnvValue -Lines $lines -Name 'TC_ALLOW_TEAMCENTER_READ' -Value ([int]$EnableTeamcenterRead)
+Add-EnvValue -Lines $lines -Name 'TC_ALLOW_TEAMCENTER_READ' -Value (ConvertTo-EnvFlag -Enabled $EnableTeamcenterRead.IsPresent)
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_URL' -Value $TeamcenterUrl
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_USER' -Value $TeamcenterUser
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_PASSWORD' -Value (ConvertFrom-SecureValue $TeamcenterPassword)
@@ -215,10 +224,10 @@ Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_JAVA' -Value $TeamcenterJava
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_LIB' -Value $TeamcenterSoaLib
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_EXTRA_JARS' -Value ($TeamcenterSoaExtraJars -join ';')
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_ADAPTER_JAR' -Value $TeamcenterSoaAdapterJar
-Add-EnvValue -Lines $lines -Name 'TC_ALLOW_BROWSER_DIAGNOSTICS' -Value ([int]$EnableBrowserDiagnostics)
+Add-EnvValue -Lines $lines -Name 'TC_ALLOW_BROWSER_DIAGNOSTICS' -Value (ConvertTo-EnvFlag -Enabled $EnableBrowserDiagnostics.IsPresent)
 Add-EnvValue -Lines $lines -Name 'TC_BROWSER_DEVTOOLS_URL' -Value $BrowserDevtoolsUrl
 Add-EnvValue -Lines $lines -Name 'TC_ALLOW_CAPABILITY_TASKS' -Value '1'
-Add-EnvValue -Lines $lines -Name 'TC_ENFORCE_CAPABILITIES' -Value ([int](-not $AllowDirectPrivilegedTools))
+Add-EnvValue -Lines $lines -Name 'TC_ENFORCE_CAPABILITIES' -Value (ConvertTo-EnvFlag -Enabled (-not $AllowDirectPrivilegedTools.IsPresent))
 Add-EnvValue -Lines $lines -Name 'TC_AGENT_ID' -Value $AgentId
 Add-EnvValue -Lines $lines -Name 'TC_CAPABILITY_PUBLIC_KEY' -Value $CapabilityPublicKeyPath
 Add-EnvValue -Lines $lines -Name 'TC_CAPABILITY_ISSUER' -Value $CapabilityIssuer
