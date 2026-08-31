@@ -4,7 +4,8 @@ import { JsonlAuditLog } from "./audit.js";
 import { ReplayProtector, verifyCapability } from "./capability.js";
 
 function parseTask(value) {
-	if (typeof value !== "string") throw new Error("task_json deve ser texto JSON");
+	if (typeof value !== "string")
+		throw new Error("task_json deve ser texto JSON");
 	let task;
 	try {
 		task = JSON.parse(value);
@@ -17,38 +18,41 @@ function parseTask(value) {
 	if (typeof task.action !== "string" || !task.action) {
 		throw new Error("task_json.action e obrigatorio");
 	}
-	if (!task.parameters || typeof task.parameters !== "object" || Array.isArray(task.parameters)) {
+	if (
+		!task.parameters ||
+		typeof task.parameters !== "object" ||
+		Array.isArray(task.parameters)
+	) {
 		throw new Error("task_json.parameters deve ser um objeto");
 	}
 	return task;
 }
 
-function assertExact(scope, parameters, field) {
-	if (scope[field] !== undefined && parameters[field] !== scope[field]) {
-		throw new Error(`Parametro fora do escopo autorizado: ${field}`);
-	}
-}
-
-function assertMax(scope, parameters, field) {
-	if (scope[`max_${field}`] !== undefined && parameters[field] > scope[`max_${field}`]) {
-		throw new Error(`Parametro excede o maximo autorizado: ${field}`);
-	}
-}
-
 export function validateScope(scope, parameters) {
-	for (const field of Object.keys(parameters)) {
-		if (scope[field] === undefined && scope[`max_${field}`] === undefined) {
+	for (const [field, value] of Object.entries(parameters)) {
+		if (scope[field] !== undefined) {
+			if (value !== scope[field])
+				throw new Error(`Parametro fora do escopo autorizado: ${field}`);
+			continue;
+		}
+		if (scope[`max_${field}`] === undefined) {
 			throw new Error(`Parametro sem autorizacao no escopo: ${field}`);
 		}
+		if (typeof value !== "number" || value > scope[`max_${field}`]) {
+			throw new Error(`Parametro excede o maximo autorizado: ${field}`);
+		}
 	}
-	for (const field of ["page_id", "service_name", "host", "port", "check", "scope"]) {
-		assertExact(scope, parameters, field);
-	}
-	for (const field of ["capture_ms", "limit"]) assertMax(scope, parameters, field);
 }
 
 export class AuthorizedTaskRunner {
-	constructor({ agentId, issuer, publicKeyPath, auditLogPath, handlers, policy = {} }) {
+	constructor({
+		agentId,
+		issuer,
+		publicKeyPath,
+		auditLogPath,
+		handlers,
+		policy = {},
+	}) {
 		this.agentId = agentId;
 		this.issuer = issuer;
 		this.publicKeyPath = publicKeyPath;
@@ -59,7 +63,8 @@ export class AuthorizedTaskRunner {
 	}
 
 	setIssuer(issuer) {
-		if (typeof issuer !== "string" || !issuer) throw new Error("Emissor de capability invalido");
+		if (typeof issuer !== "string" || !issuer)
+			throw new Error("Emissor de capability invalido");
 		this.issuer = issuer;
 	}
 
@@ -69,9 +74,15 @@ export class AuthorizedTaskRunner {
 		let claims;
 		try {
 			const publicKey = await fs.readFile(this.publicKeyPath, "utf8");
-			claims = verifyCapability(capability, { publicKey, agentId: this.agentId, issuer: this.issuer });
-			if (claims.action !== task.action) throw new Error("Acao da tarefa diverge da capability");
-			if (!this.policy[claims.action]) throw new Error("Acao bloqueada pela politica local");
+			claims = verifyCapability(capability, {
+				publicKey,
+				agentId: this.agentId,
+				issuer: this.issuer,
+			});
+			if (claims.action !== task.action)
+				throw new Error("Acao da tarefa diverge da capability");
+			if (!this.policy[claims.action])
+				throw new Error("Acao bloqueada pela politica local");
 			const handler = this.handlers[claims.action];
 			if (!handler) throw new Error("Acao nao esta habilitada neste agente");
 			validateScope(claims.scope, task.parameters);

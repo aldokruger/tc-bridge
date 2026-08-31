@@ -5,6 +5,7 @@ import { makeBrowserTools } from "./browser-agent.js";
 import { isWithinAllowed } from "./config.js";
 import { runDbDiagnostic } from "./db-diagnostics.js";
 import { runDiagnostic } from "./diagnostics.js";
+import { makeTeamcenterLogTool } from "./teamcenter-logs.js";
 import { runTeamcenterRead } from "./teamcenter-soa.js";
 import { AuthorizedTaskRunner } from "./zero-trust/task-runner.js";
 
@@ -472,6 +473,12 @@ export function makeTools(cfg) {
 		Object.assign(tools, makeBrowserTools(cfg));
 	}
 
+	if (cfg.allowLogRead) {
+		tools.teamcenter_log_inspect = makeTeamcenterLogTool({
+			logDirectory: cfg.teamcenterLogDir,
+		});
+	}
+
 	if (cfg.allowCapabilityTasks) {
 		const handlers = {};
 		const policy = {};
@@ -488,6 +495,7 @@ export function makeTools(cfg) {
 		addHandler("diagnostic.run", "run_diagnostic");
 		addHandler("database.diagnostic", "run_db_diagnostic");
 		addHandler("teamcenter.read", "tc_soa_read");
+		addHandler("teamcenter.logs.read", "teamcenter_log_inspect");
 
 		const runner = new AuthorizedTaskRunner({
 			agentId: cfg.agentId,
@@ -513,6 +521,7 @@ export function makeTools(cfg) {
 				diagnostic: "run_diagnostic",
 				database: "run_db_diagnostic",
 				teamcenter: "tc_soa_read",
+				teamcenterLogs: "teamcenter_log_inspect",
 			})) {
 				delete tools[toolName];
 			}

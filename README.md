@@ -117,6 +117,7 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR` | — | Diretório oficial dos jars SOA e jar compilado do adaptador |
 | `TC_ALLOW_BROWSER_DIAGNOSTICS` | `0` | Habilita diagnósticos Chrome DevTools somente leitura |
 | `TC_BROWSER_DEVTOOLS_URL` | `http://127.0.0.1:9222` | Endpoint CDP local; aceita somente loopback |
+| `TC_ALLOW_LOG_READ` / `TC_TEAMCENTER_LOG_DIR` | `0` / — | Habilita inspeção somente-leitura de logs em uma única pasta permitida |
 | `TC_ALLOW_CAPABILITY_TASKS` | `0` | Habilita capability Ed25519 assinada, única e auditada para tarefas autorizadas |
 | `TC_ENFORCE_CAPABILITIES` | `0` | Oculta ferramentas diretas privilegiadas e exige capability para Browser, SOA, MSSQL e host |
 | `TC_AGENT_ID` / `TC_CAPABILITY_PUBLIC_KEY` / `TC_CAPABILITY_ISSUER` | — | Identidade do agente, PEM público e emissor confiável das capabilities |
@@ -140,6 +141,7 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `tc_soa_read` | Opcional; consultas Teamcenter SOA predefinidas e somente leitura |
 | `browser_status` / `browser_pages` | Opcional; estado e páginas de um Chrome local em depuração |
 | `browser_capture_diagnostics` / `browser_performance` | Opcional; Console/Network novos e métricas, somente leitura |
+| `teamcenter_log_inspect` | Opcional; lista, busca e lê o final de logs Teamcenter com limites e mascaramento de segredos |
 | `tc_authorized_task` | Opcional; executa capability Ed25519 assinada, de uso único e auditada |
 
 ### Capabilities zero-trust
@@ -154,6 +156,13 @@ copiada para o agente.
 Em produção, habilite também `TC_ENFORCE_CAPABILITIES=1`. Ele mantém somente
 `tc_authorized_task` para capacidades privilegiadas e impede o uso direto de
 Browser, SOA, MSSQL e diagnósticos de host pelo endpoint MCP.
+
+### Inspeção de logs Teamcenter
+
+Com `TC_ALLOW_LOG_READ=1`, configure `TC_TEAMCENTER_LOG_DIR` para a única
+pasta de logs autorizada. A ação `teamcenter.logs.read` aceita `list`, `tail`
+e `search`, nunca aceita caminhos absolutos e mascara tokens, senhas e cookies
+na saída. Inclua essa ação em `TC_BROKER_ALLOWED_ACTIONS` no broker.
 
 ### Agente reverso e broker mTLS
 

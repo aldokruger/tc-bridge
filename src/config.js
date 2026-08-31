@@ -50,6 +50,7 @@ export function loadConfig(flags = {}) {
 		flags.allowTeamcenterRead || env.TC_ALLOW_TEAMCENTER_READ === "1";
 	const allowBrowserDiagnostics =
 		flags.allowBrowserDiagnostics || env.TC_ALLOW_BROWSER_DIAGNOSTICS === "1";
+	const allowLogRead = flags.allowLogRead || env.TC_ALLOW_LOG_READ === "1";
 	const allowCapabilityTasks =
 		flags.allowCapabilityTasks || env.TC_ALLOW_CAPABILITY_TASKS === "1";
 	const enforceCapabilities =
@@ -63,6 +64,7 @@ export function loadConfig(flags = {}) {
 		allowDbDiagnostics,
 		allowTeamcenterRead,
 		allowBrowserDiagnostics,
+		allowLogRead,
 		allowCapabilityTasks,
 		enforceCapabilities,
 		agentId: flags.agentId || env.TC_AGENT_ID || "",
@@ -70,17 +72,22 @@ export function loadConfig(flags = {}) {
 			flags.capabilityPublicKey || env.TC_CAPABILITY_PUBLIC_KEY || "",
 		capabilityIssuer: flags.capabilityIssuer || env.TC_CAPABILITY_ISSUER || "",
 		auditLogPath:
-			flags.auditLogPath || env.TC_AUDIT_LOG_PATH || path.join(".", "logs", "tc-agent-audit.jsonl"),
+			flags.auditLogPath ||
+			env.TC_AUDIT_LOG_PATH ||
+			path.join(".", "logs", "tc-agent-audit.jsonl"),
 		browserDevtoolsUrl:
 			flags.browserDevtoolsUrl ||
 			env.TC_BROWSER_DEVTOOLS_URL ||
 			"http://127.0.0.1:9222",
+		teamcenterLogDir: flags.teamcenterLogDir || env.TC_TEAMCENTER_LOG_DIR || "",
 		teamcenterUrl: flags.teamcenterUrl || env.TC_TEAMCENTER_URL || "",
 		teamcenterUser: flags.teamcenterUser || env.TC_TEAMCENTER_USER || "",
-		teamcenterPassword: flags.teamcenterPassword || env.TC_TEAMCENTER_PASSWORD || "",
+		teamcenterPassword:
+			flags.teamcenterPassword || env.TC_TEAMCENTER_PASSWORD || "",
 		teamcenterGroup: flags.teamcenterGroup || env.TC_TEAMCENTER_GROUP || "",
 		teamcenterRole: flags.teamcenterRole || env.TC_TEAMCENTER_ROLE || "",
-		teamcenterLocale: flags.teamcenterLocale || env.TC_TEAMCENTER_LOCALE || "en_US",
+		teamcenterLocale:
+			flags.teamcenterLocale || env.TC_TEAMCENTER_LOCALE || "en_US",
 		teamcenterJava: flags.teamcenterJava || env.TC_TEAMCENTER_JAVA || "java",
 		teamcenterSoaAdapterJar:
 			flags.teamcenterSoaAdapterJar || env.TC_TEAMCENTER_SOA_ADAPTER_JAR || "",
@@ -96,8 +103,9 @@ export function loadConfig(flags = {}) {
 		dbPassword: flags.dbPassword || env.TC_DB_PASSWORD || "",
 		dbEncrypt: (flags.dbEncrypt || env.TC_DB_ENCRYPT || "true") !== "false",
 		dbTrustServerCertificate:
-			(flags.dbTrustServerCertificate || env.TC_DB_TRUST_SERVER_CERTIFICATE || "false") ===
-			"true",
+			(flags.dbTrustServerCertificate ||
+				env.TC_DB_TRUST_SERVER_CERTIFICATE ||
+				"false") === "true",
 		dbConnectTimeoutMs: positiveNumber(
 			flags.dbConnectTimeoutMs || env.TC_DB_CONNECT_TIMEOUT_MS,
 			"TC_DB_CONNECT_TIMEOUT_MS",
@@ -136,7 +144,10 @@ export function loadConfig(flags = {}) {
 			TC_DB_USER: config.dbUser,
 			TC_DB_PASSWORD: config.dbPassword,
 		})) {
-			if (!value) throw new Error(`${name} e obrigatorio quando TC_ALLOW_DB_DIAGNOSTICS=1`);
+			if (!value)
+				throw new Error(
+					`${name} e obrigatorio quando TC_ALLOW_DB_DIAGNOSTICS=1`,
+				);
 		}
 	}
 	if (allowTeamcenterRead) {
@@ -147,8 +158,16 @@ export function loadConfig(flags = {}) {
 			TC_TEAMCENTER_SOA_ADAPTER_JAR: config.teamcenterSoaAdapterJar,
 			TC_TEAMCENTER_SOA_LIB: config.teamcenterSoaLib,
 		})) {
-			if (!value) throw new Error(`${name} e obrigatorio quando TC_ALLOW_TEAMCENTER_READ=1`);
+			if (!value)
+				throw new Error(
+					`${name} e obrigatorio quando TC_ALLOW_TEAMCENTER_READ=1`,
+				);
 		}
+	}
+	if (allowLogRead && !config.teamcenterLogDir) {
+		throw new Error(
+			"TC_TEAMCENTER_LOG_DIR e obrigatorio quando TC_ALLOW_LOG_READ=1",
+		);
 	}
 	if (allowCapabilityTasks) {
 		for (const [name, value] of Object.entries({
@@ -156,11 +175,16 @@ export function loadConfig(flags = {}) {
 			TC_CAPABILITY_PUBLIC_KEY: config.capabilityPublicKey,
 			TC_CAPABILITY_ISSUER: config.capabilityIssuer,
 		})) {
-			if (!value) throw new Error(`${name} e obrigatorio quando TC_ALLOW_CAPABILITY_TASKS=1`);
+			if (!value)
+				throw new Error(
+					`${name} e obrigatorio quando TC_ALLOW_CAPABILITY_TASKS=1`,
+				);
 		}
 	}
 	if (enforceCapabilities && !allowCapabilityTasks) {
-		throw new Error("TC_ENFORCE_CAPABILITIES=1 exige TC_ALLOW_CAPABILITY_TASKS=1");
+		throw new Error(
+			"TC_ENFORCE_CAPABILITIES=1 exige TC_ALLOW_CAPABILITY_TASKS=1",
+		);
 	}
 	return config;
 }

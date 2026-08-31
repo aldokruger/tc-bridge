@@ -1,5 +1,4 @@
-import crypto from "node:crypto";
-import { randomUUID } from "node:crypto";
+import crypto, { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
@@ -21,7 +20,11 @@ export function isAuthorizedRequest(header, expectedToken) {
 function capabilityScope(parameters) {
 	return Object.fromEntries(
 		Object.entries(parameters).map(([name, value]) => [
-			name === "capture_ms" || name === "limit" ? `max_${name}` : name,
+			["capture_ms", "limit", "max_files", "max_lines", "max_matches"].includes(
+				name,
+			)
+				? `max_${name}`
+				: name,
 			value,
 		]),
 	);
@@ -62,7 +65,9 @@ function buildServer(config) {
 		"Lista agentes Teamcenter conectados ao broker.",
 		{},
 		async () => ({
-			content: [{ type: "text", text: JSON.stringify(config.broker.listAgents()) }],
+			content: [
+				{ type: "text", text: JSON.stringify(config.broker.listAgents()) },
+			],
 		}),
 	);
 	server.tool(
@@ -77,7 +82,12 @@ function buildServer(config) {
 			if (!config.allowedActions.has(action)) {
 				return {
 					isError: true,
-					content: [{ type: "text", text: "ERRO: Acao bloqueada pela politica do broker" }],
+					content: [
+						{
+							type: "text",
+							text: "ERRO: Acao bloqueada pela politica do broker",
+						},
+					],
 				};
 			}
 			try {
@@ -117,7 +127,9 @@ export function createBrokerMcpApp(config) {
 	const route = async (req, res) => {
 		const sessionId = req.headers["mcp-session-id"];
 		if (typeof sessionId === "string" && sessions.has(sessionId)) {
-			return sessions.get(sessionId).transport.handleRequest(req, res, req.body);
+			return sessions
+				.get(sessionId)
+				.transport.handleRequest(req, res, req.body);
 		}
 		if (!sessionId && req.body?.method === "initialize") {
 			const server = buildServer(config);
