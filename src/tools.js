@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isWithinAllowed } from "./config.js";
-import { runDiagnostic } from "./diagnostics.js";
-import { runDbDiagnostic } from "./db-diagnostics.js";
-import { runTeamcenterRead } from "./teamcenter-soa.js";
 import { makeBrowserTools } from "./browser-agent.js";
+import { isWithinAllowed } from "./config.js";
+import { runDbDiagnostic } from "./db-diagnostics.js";
+import { runDiagnostic } from "./diagnostics.js";
+import { runTeamcenterRead } from "./teamcenter-soa.js";
 import { AuthorizedTaskRunner } from "./zero-trust/task-runner.js";
 
 const MAX_READ_BYTES = 2_000_000;
@@ -476,8 +476,9 @@ export function makeTools(cfg) {
 		const handlers = {};
 		const policy = {};
 		const addHandler = (action, toolName) => {
-			if (!tools[toolName]) return;
-			handlers[action] = (parameters) => tools[toolName].run(parameters);
+			const tool = tools[toolName];
+			if (!tool) return;
+			handlers[action] = (parameters) => tool.run(parameters);
 			policy[action] = true;
 		};
 		addHandler("browser.status", "browser_status");
