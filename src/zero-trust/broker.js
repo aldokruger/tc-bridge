@@ -11,9 +11,13 @@ function parseMessage(payload) {
 }
 
 export class AgentBroker {
-	constructor({ tls, requireCertificateCnMatch = true, taskTimeoutMs = 60_000 }) {
+	constructor({ tls, capabilityIssuer, requireCertificateCnMatch = true, taskTimeoutMs = 60_000 }) {
+		if (typeof capabilityIssuer !== "string" || !capabilityIssuer) {
+			throw new Error("Emissor de capability obrigatorio para o broker");
+		}
 		this.agents = new Map();
 		this.pendingTasks = new Map();
+		this.capabilityIssuer = capabilityIssuer;
 		this.requireCertificateCnMatch = requireCertificateCnMatch;
 		this.taskTimeoutMs = taskTimeoutMs;
 		this.server = https.createServer({ ...tls, requestCert: true, rejectUnauthorized: true });
@@ -42,7 +46,11 @@ export class AgentBroker {
 				clearTimeout(helloTimeout);
 				this.agents.set(agentId, { websocket, connectedAt: new Date().toISOString() });
 				websocket.on("message", (nextPayload) => this.#handleMessage(agentId, nextPayload));
-				websocket.send(JSON.stringify({ type: "agent.accepted", agent_id: agentId }));
+				websocket.send(JSON.stringify({
+					type: "agent.accepted",
+					agent_id: agentId,
+					capability_issuer: this.capabilityIssuer,
+				}));
 			} catch (error) {
 				clearTimeout(helloTimeout);
 				websocket.close(1008, error.message);

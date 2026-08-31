@@ -46,7 +46,7 @@ const [key, cert, ca, privateKey, apiKey, apiCertificate] = await Promise.all([
 	fs.readFile(apiKeyPath),
 	fs.readFile(apiCertificatePath),
 ]);
-const broker = new AgentBroker({ tls: { key, cert, ca } });
+const broker = new AgentBroker({ tls: { key, cert, ca }, capabilityIssuer });
 await broker.listen(port);
 console.log(`[tc-broker] escutando com mTLS na porta ${port}`);
 const app = createBrokerMcpApp({

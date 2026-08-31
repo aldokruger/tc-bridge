@@ -58,6 +58,11 @@ export class AuthorizedTaskRunner {
 		this.audit = new JsonlAuditLog(auditLogPath);
 	}
 
+	setIssuer(issuer) {
+		if (typeof issuer !== "string" || !issuer) throw new Error("Emissor de capability invalido");
+		this.issuer = issuer;
+	}
+
 	async run({ capability, task_json }) {
 		const task = parseTask(task_json);
 		const auditId = crypto.randomUUID();

@@ -501,6 +501,7 @@ export function makeTools(cfg) {
 				"Executa uma capability assinada e de uso unico. Somente acoes locais allowlisted, auditadas e dentro do escopo autorizado.",
 			input: { capability: "string", task_json: "string" },
 			run: (request) => runner.run(request),
+			setIssuer: (issuer) => runner.setIssuer(issuer),
 		};
 		if (cfg.enforceCapabilities) {
 			for (const toolName of Object.values({

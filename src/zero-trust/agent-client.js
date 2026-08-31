@@ -6,9 +6,19 @@ export function parseBrokerTask(message) {
 	return message.task;
 }
 
+export function parseBrokerAcceptance(message, agentId) {
+	if (!message || message.type !== "agent.accepted" || message.agent_id !== agentId) {
+		throw new Error("Aceite do broker invalido");
+	}
+	if (typeof message.capability_issuer !== "string" || !message.capability_issuer) {
+		throw new Error("Aceite do broker sem emissor de capability");
+	}
+	return message.capability_issuer;
+}
+
 export class ReverseAgentClient {
-	constructor({ brokerUrl, agentId, tls, executeTask, reconnectMs = 5_000, logger = console }) {
-		Object.assign(this, { brokerUrl, agentId, tls, executeTask, reconnectMs, logger, stopped: false, socket: null });
+	constructor({ brokerUrl, agentId, tls, executeTask, onAccepted, reconnectMs = 5_000, logger = console }) {
+		Object.assign(this, { brokerUrl, agentId, tls, executeTask, onAccepted, reconnectMs, logger, stopped: false, socket: null });
 	}
 
 	start() {
@@ -30,6 +40,10 @@ export class ReverseAgentClient {
 			let message;
 			try {
 				message = JSON.parse(payload.toString());
+				if (message.type === "agent.accepted") {
+					this.onAccepted?.(parseBrokerAcceptance(message, this.agentId));
+					return;
+				}
 				if (message.type !== "task") return;
 				const task = parseBrokerTask(message);
 				const result = await this.executeTask(task);
