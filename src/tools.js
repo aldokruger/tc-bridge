@@ -6,6 +6,7 @@ import { runDiagnostic } from "./diagnostics.js";
 import { runDbDiagnostic } from "./db-diagnostics.js";
 import { runTeamcenterRead } from "./teamcenter-soa.js";
 import { makeBrowserTools } from "./browser-agent.js";
+import { AuthorizedTaskRunner } from "./zero-trust/task-runner.js";
 
 const MAX_READ_BYTES = 2_000_000;
 const LATIN1 = new TextDecoder("iso-8859-1");
@@ -469,6 +470,51 @@ export function makeTools(cfg) {
 
 	if (cfg.allowBrowserDiagnostics) {
 		Object.assign(tools, makeBrowserTools(cfg));
+	}
+
+	if (cfg.allowCapabilityTasks) {
+		const handlers = {};
+		const policy = {};
+		const addHandler = (action, toolName) => {
+			if (!tools[toolName]) return;
+			handlers[action] = (parameters) => tools[toolName].run(parameters);
+			policy[action] = true;
+		};
+		addHandler("browser.status", "browser_status");
+		addHandler("browser.pages", "browser_pages");
+		addHandler("browser.capture_diagnostics", "browser_capture_diagnostics");
+		addHandler("browser.performance", "browser_performance");
+		addHandler("diagnostic.run", "run_diagnostic");
+		addHandler("database.diagnostic", "run_db_diagnostic");
+		addHandler("teamcenter.read", "tc_soa_read");
+
+		const runner = new AuthorizedTaskRunner({
+			agentId: cfg.agentId,
+			issuer: cfg.capabilityIssuer,
+			publicKeyPath: cfg.capabilityPublicKey,
+			auditLogPath: cfg.auditLogPath,
+			handlers,
+			policy,
+		});
+		tools.tc_authorized_task = {
+			description:
+				"Executa uma capability assinada e de uso unico. Somente acoes locais allowlisted, auditadas e dentro do escopo autorizado.",
+			input: { capability: "string", task_json: "string" },
+			run: (request) => runner.run(request),
+		};
+		if (cfg.enforceCapabilities) {
+			for (const toolName of Object.values({
+				browserStatus: "browser_status",
+				browserPages: "browser_pages",
+				browserCapture: "browser_capture_diagnostics",
+				browserPerformance: "browser_performance",
+				diagnostic: "run_diagnostic",
+				database: "run_db_diagnostic",
+				teamcenter: "tc_soa_read",
+			})) {
+				delete tools[toolName];
+			}
+		}
 	}
 
 	return tools;

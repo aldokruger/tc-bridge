@@ -50,6 +50,10 @@ export function loadConfig(flags = {}) {
 		flags.allowTeamcenterRead || env.TC_ALLOW_TEAMCENTER_READ === "1";
 	const allowBrowserDiagnostics =
 		flags.allowBrowserDiagnostics || env.TC_ALLOW_BROWSER_DIAGNOSTICS === "1";
+	const allowCapabilityTasks =
+		flags.allowCapabilityTasks || env.TC_ALLOW_CAPABILITY_TASKS === "1";
+	const enforceCapabilities =
+		flags.enforceCapabilities || env.TC_ENFORCE_CAPABILITIES === "1";
 	const config = {
 		token,
 		host: flags.host || env.TC_HOST || "127.0.0.1",
@@ -59,6 +63,14 @@ export function loadConfig(flags = {}) {
 		allowDbDiagnostics,
 		allowTeamcenterRead,
 		allowBrowserDiagnostics,
+		allowCapabilityTasks,
+		enforceCapabilities,
+		agentId: flags.agentId || env.TC_AGENT_ID || "",
+		capabilityPublicKey:
+			flags.capabilityPublicKey || env.TC_CAPABILITY_PUBLIC_KEY || "",
+		capabilityIssuer: flags.capabilityIssuer || env.TC_CAPABILITY_ISSUER || "",
+		auditLogPath:
+			flags.auditLogPath || env.TC_AUDIT_LOG_PATH || path.join(".", "logs", "tc-agent-audit.jsonl"),
 		browserDevtoolsUrl:
 			flags.browserDevtoolsUrl ||
 			env.TC_BROWSER_DEVTOOLS_URL ||
@@ -137,6 +149,18 @@ export function loadConfig(flags = {}) {
 		})) {
 			if (!value) throw new Error(`${name} e obrigatorio quando TC_ALLOW_TEAMCENTER_READ=1`);
 		}
+	}
+	if (allowCapabilityTasks) {
+		for (const [name, value] of Object.entries({
+			TC_AGENT_ID: config.agentId,
+			TC_CAPABILITY_PUBLIC_KEY: config.capabilityPublicKey,
+			TC_CAPABILITY_ISSUER: config.capabilityIssuer,
+		})) {
+			if (!value) throw new Error(`${name} e obrigatorio quando TC_ALLOW_CAPABILITY_TASKS=1`);
+		}
+	}
+	if (enforceCapabilities && !allowCapabilityTasks) {
+		throw new Error("TC_ENFORCE_CAPABILITIES=1 exige TC_ALLOW_CAPABILITY_TASKS=1");
 	}
 	return config;
 }

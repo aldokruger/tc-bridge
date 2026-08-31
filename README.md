@@ -117,6 +117,10 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR` | — | Diretório oficial dos jars SOA e jar compilado do adaptador |
 | `TC_ALLOW_BROWSER_DIAGNOSTICS` | `0` | Habilita diagnósticos Chrome DevTools somente leitura |
 | `TC_BROWSER_DEVTOOLS_URL` | `http://127.0.0.1:9222` | Endpoint CDP local; aceita somente loopback |
+| `TC_ALLOW_CAPABILITY_TASKS` | `0` | Habilita capability Ed25519 assinada, única e auditada para tarefas autorizadas |
+| `TC_ENFORCE_CAPABILITIES` | `0` | Oculta ferramentas diretas privilegiadas e exige capability para Browser, SOA, MSSQL e host |
+| `TC_AGENT_ID` / `TC_CAPABILITY_PUBLIC_KEY` / `TC_CAPABILITY_ISSUER` | — | Identidade do agente, PEM público e emissor confiável das capabilities |
+| `TC_AUDIT_LOG_PATH` | `./logs/tc-agent-audit.jsonl` | Auditoria JSONL local das tarefas autorizadas |
 | `TC_TEAMCENTER_SOA_EXTRA_JARS` | — | JARs extras do cliente SOA, separados por `;` (por exemplo, Log4j) |
 
 ## Ferramentas MCP expostas
@@ -136,6 +140,37 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `tc_soa_read` | Opcional; consultas Teamcenter SOA predefinidas e somente leitura |
 | `browser_status` / `browser_pages` | Opcional; estado e páginas de um Chrome local em depuração |
 | `browser_capture_diagnostics` / `browser_performance` | Opcional; Console/Network novos e métricas, somente leitura |
+| `tc_authorized_task` | Opcional; executa capability Ed25519 assinada, de uso único e auditada |
+
+### Capabilities zero-trust
+
+Com `TC_ALLOW_CAPABILITY_TASKS=1`, o bridge expõe `tc_authorized_task`. Cada
+tarefa contém uma capability JWS Ed25519 assinada pelo broker e um JSON de
+parâmetros. O agente valida assinatura, emissor, audiência, expiração, escopo e
+uso único antes de chamar qualquer adaptador. O resultado recebe `audit_id` e o
+host grava eventos JSONL locais. A chave privada do emissor nunca deve ser
+copiada para o agente.
+
+Em produção, habilite também `TC_ENFORCE_CAPABILITIES=1`. Ele mantém somente
+`tc_authorized_task` para capacidades privilegiadas e impede o uso direto de
+Browser, SOA, MSSQL e diagnósticos de host pelo endpoint MCP.
+
+### Agente reverso e broker mTLS
+
+O pacote inclui os executáveis `tc-agent` e `tc-broker` para homologação do
+canal reverso. O broker exige certificado de servidor, CA de certificados de
+cliente e mTLS; o agente exige certificado próprio, chave privada, CA do broker
+e `TC_ALLOW_CAPABILITY_TASKS=1`. A conexão é sempre iniciada pelo agente.
+
+```powershell
+# Host do agente
+$env:TC_BROKER_URL = 'wss://broker.exemplo.com/agent'
+tc-agent
+```
+
+O `tc-broker` é uma biblioteca/CLI de desenvolvimento. A aplicação cloud de
+produção deve integrar `AgentBroker`, OIDC/MFA, registro de agentes, emissão de
+capabilities e auditoria central antes de usar `dispatch`.
 
 ### Diagnóstico do navegador AWC
 

@@ -25,3 +25,23 @@ test("requires complete database configuration only when database diagnostics ar
 		}),
 	);
 });
+
+test("requires agent identity, issuer and public key for capability tasks", () => {
+	assert.throws(
+		() => loadConfig({ ...baseConfig, allowCapabilityTasks: true }),
+		/TC_AGENT_ID/,
+	);
+	assert.doesNotThrow(() =>
+		loadConfig({
+			...baseConfig,
+			allowCapabilityTasks: true,
+			agentId: "agent-test",
+			capabilityIssuer: "https://broker.example.test",
+			capabilityPublicKey: "C:/keys/capability-public.pem",
+		}),
+	);
+	assert.throws(
+		() => loadConfig({ ...baseConfig, enforceCapabilities: true }),
+		/TC_ENFORCE_CAPABILITIES=1 exige/,
+	);
+});

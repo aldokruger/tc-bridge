@@ -4,7 +4,9 @@
   "description": "MCP bridge TCP/HTTP para acessar arquivos de upgrade de Teamcenter (roda na maquina com dados, sobe tunel outbound)",
   "type": "module",
   "bin": {
-    "tc-bridge": "bin/tc-bridge.js"
+    "tc-bridge": "bin/tc-bridge.js",
+    "tc-agent": "bin/tc-agent.js",
+    "tc-broker": "bin/tc-broker.js"
   },
   "files": [
     "bin",

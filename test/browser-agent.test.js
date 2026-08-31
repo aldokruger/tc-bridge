@@ -40,4 +40,15 @@ test("exposes browser tools only when explicitly enabled", () => {
 	};
 	assert.equal(makeTools(baseConfig).browser_status, undefined);
 	assert.ok(makeTools({ ...baseConfig, allowBrowserDiagnostics: true }).browser_status);
+	const protectedTools = makeTools({
+		...baseConfig,
+		allowBrowserDiagnostics: true,
+		allowCapabilityTasks: true,
+		enforceCapabilities: true,
+		agentId: "agent-test",
+		capabilityIssuer: "https://broker.example.test",
+		capabilityPublicKey: "/keys/capability-public.pem",
+	});
+	assert.equal(protectedTools.browser_status, undefined);
+	assert.ok(protectedTools.tc_authorized_task);
 });

@@ -50,6 +50,22 @@ const program = new Command()
 		"Habilita diagnosticos Chrome CDP somente leitura (env TC_ALLOW_BROWSER_DIAGNOSTICS=1)",
 	)
 	.option(
+		"--allow-capability-tasks",
+		"Exige capabilities Ed25519 para tarefas autorizadas (env TC_ALLOW_CAPABILITY_TASKS=1)",
+	)
+	.option(
+		"--enforce-capabilities",
+		"Oculta ferramentas privilegiadas diretas e exige tc_authorized_task (env TC_ENFORCE_CAPABILITIES=1)",
+	)
+	.option("--agent-id <id>", "Identidade do agente (env TC_AGENT_ID)", "")
+	.option(
+		"--capability-public-key <path>",
+		"Chave publica Ed25519 do emissor (env TC_CAPABILITY_PUBLIC_KEY)",
+		"",
+	)
+	.option("--capability-issuer <url>", "Emissor esperado das capabilities (env TC_CAPABILITY_ISSUER)", "")
+	.option("--audit-log-path <path>", "Arquivo JSONL de auditoria (env TC_AUDIT_LOG_PATH)", "")
+	.option(
 		"--browser-devtools-url <url>",
 		"URL Chrome CDP local (env TC_BROWSER_DEVTOOLS_URL; somente loopback)",
 		"",
@@ -148,6 +164,12 @@ program.action(async () => {
 		allowDbDiagnostics: opts.allowDbDiagnostics,
 		allowBrowserDiagnostics: opts.allowBrowserDiagnostics,
 		browserDevtoolsUrl: opts.browserDevtoolsUrl,
+		allowCapabilityTasks: opts.allowCapabilityTasks,
+		enforceCapabilities: opts.enforceCapabilities,
+		agentId: opts.agentId,
+		capabilityPublicKey: opts.capabilityPublicKey,
+		capabilityIssuer: opts.capabilityIssuer,
+		auditLogPath: opts.auditLogPath,
 		dbServer: opts.dbServer,
 		dbPort: opts.dbPort,
 		dbName: opts.dbName,
