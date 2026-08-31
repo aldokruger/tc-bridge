@@ -168,9 +168,27 @@ $env:TC_BROKER_URL = 'wss://broker.exemplo.com/agent'
 tc-agent
 ```
 
-O `tc-broker` é uma biblioteca/CLI de desenvolvimento. A aplicação cloud de
-produção deve integrar `AgentBroker`, OIDC/MFA, registro de agentes, emissão de
-capabilities e auditoria central antes de usar `dispatch`.
+O `tc-broker` também expõe uma API MCP HTTPS em uma porta separada (padrão
+`8444`). Ela aceita apenas Bearer token, lista agentes conectados e disponibiliza
+`tc_dispatch_authorized_task`, que cria uma capability Ed25519 de uso único e a
+encaminha pelo canal mTLS. Configure `TC_BROKER_API_TOKEN`,
+`TC_CAPABILITY_PRIVATE_KEY`, `TC_CAPABILITY_ISSUER` e uma allowlist explícita em
+`TC_BROKER_ALLOWED_ACTIONS`. O token da API e a chave privada nunca devem ser
+copiados para o agente Teamcenter.
+
+Configure o Codex com MCP remoto HTTPS em `https://broker.exemplo.com:8444/mcp`
+e o header `Authorization: Bearer <TC_BROKER_API_TOKEN>`. A API MCP não usa o
+certificado do agente; somente o canal `/agent` usa mTLS.
+
+Use um hostname e certificado TLS publicamente confiável para a API MCP,
+configurados em `TC_BROKER_API_TLS_KEY` e
+`TC_BROKER_API_TLS_CERTIFICATE`. Reutilizar o certificado mTLS do broker só é
+adequado para homologação; clientes MCP remotos normalmente não confiam em uma
+CA privada de agentes.
+
+Esta é uma base de homologação com token de serviço. Produção ainda requer
+OIDC/MFA, autorização por usuário, registro/persistência de agentes e auditoria
+central.
 
 ### Diagnóstico do navegador AWC
 

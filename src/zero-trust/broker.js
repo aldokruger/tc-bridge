@@ -1,4 +1,5 @@
 import https from "node:https";
+import crypto from "node:crypto";
 import WebSocket, { WebSocketServer } from "ws";
 
 function parseMessage(payload) {
@@ -10,9 +11,11 @@ function parseMessage(payload) {
 }
 
 export class AgentBroker {
-	constructor({ tls, requireCertificateCnMatch = true }) {
+	constructor({ tls, requireCertificateCnMatch = true, taskTimeoutMs = 60_000 }) {
 		this.agents = new Map();
+		this.pendingTasks = new Map();
 		this.requireCertificateCnMatch = requireCertificateCnMatch;
+		this.taskTimeoutMs = taskTimeoutMs;
 		this.server = https.createServer({ ...tls, requestCert: true, rejectUnauthorized: true });
 		this.webSocketServer = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 		this.server.on("upgrade", (request, socket, head) => {
@@ -38,6 +41,7 @@ export class AgentBroker {
 				}
 				clearTimeout(helloTimeout);
 				this.agents.set(agentId, { websocket, connectedAt: new Date().toISOString() });
+				websocket.on("message", (nextPayload) => this.#handleMessage(agentId, nextPayload));
 				websocket.send(JSON.stringify({ type: "agent.accepted", agent_id: agentId }));
 			} catch (error) {
 				clearTimeout(helloTimeout);
@@ -46,8 +50,39 @@ export class AgentBroker {
 		});
 		websocket.on("close", () => {
 			clearTimeout(helloTimeout);
-			if (agentId && this.agents.get(agentId)?.websocket === websocket) this.agents.delete(agentId);
+			if (agentId && this.agents.get(agentId)?.websocket === websocket) {
+				this.agents.delete(agentId);
+				this.#rejectAgentTasks(agentId, new Error(`Agente desconectado: ${agentId}`));
+			}
 		});
+	}
+
+	#handleMessage(agentId, payload) {
+		let message;
+		try {
+			message = parseMessage(payload);
+		} catch {
+			return;
+		}
+		if (message.type !== "task.result" || typeof message.task_id !== "string") return;
+		const pending = this.pendingTasks.get(message.task_id);
+		if (!pending || pending.agentId !== agentId) return;
+		clearTimeout(pending.timeout);
+		this.pendingTasks.delete(message.task_id);
+		if (message.status === "completed") {
+			pending.resolve(message.result);
+			return;
+		}
+		pending.reject(new Error(message.error || "A tarefa falhou no agente"));
+	}
+
+	#rejectAgentTasks(agentId, error) {
+		for (const [taskId, pending] of this.pendingTasks) {
+			if (pending.agentId !== agentId) continue;
+			clearTimeout(pending.timeout);
+			this.pendingTasks.delete(taskId);
+			pending.reject(error);
+		}
 	}
 
 	listAgents() {
@@ -57,7 +92,23 @@ export class AgentBroker {
 	dispatch(agentId, task) {
 		const connection = this.agents.get(agentId);
 		if (!connection || connection.websocket.readyState !== WebSocket.OPEN) throw new Error(`Agente indisponivel: ${agentId}`);
-		connection.websocket.send(JSON.stringify({ type: "task", task }));
+		if (!task || typeof task.capability !== "string" || typeof task.task_json !== "string") {
+			throw new Error("Tarefa sem capability ou task_json");
+		}
+		const taskId = crypto.randomUUID();
+		return new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				this.pendingTasks.delete(taskId);
+				reject(new Error(`Tempo esgotado aguardando agente: ${agentId}`));
+			}, this.taskTimeoutMs);
+			this.pendingTasks.set(taskId, { agentId, resolve, reject, timeout });
+			connection.websocket.send(JSON.stringify({ type: "task", task: { ...task, task_id: taskId } }), (error) => {
+				if (!error) return;
+				clearTimeout(timeout);
+				this.pendingTasks.delete(taskId);
+				reject(error);
+			});
+		});
 	}
 
 	listen(port, host = "0.0.0.0") {
@@ -71,6 +122,11 @@ export class AgentBroker {
 	}
 
 	close() {
+		for (const pending of this.pendingTasks.values()) {
+			clearTimeout(pending.timeout);
+			pending.reject(new Error("Broker encerrado"));
+		}
+		this.pendingTasks.clear();
 		return new Promise((resolve) => this.server.close(resolve));
 	}
 }
