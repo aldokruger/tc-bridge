@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -12,6 +13,8 @@ const ENVELOPE_SCHEMA_VERSION = "1";
 
 // Variáveis de ambiente mínimas herdadas pelo adaptador Java. O resto do
 // ambiente do host (inclusive credenciais de outros sistemas) não é repassado.
+// Allowlist nominal: somente as variáveis que o adaptador realmente lê em
+// runtime (confirmadas no TeamcenterSoaAdapter.java) entram no processo.
 const JAVA_ENV_ALLOWLIST = new Set([
 	"PATH",
 	"SystemRoot",
@@ -23,6 +26,9 @@ const JAVA_ENV_ALLOWLIST = new Set([
 	"TC_TEAMCENTER_URL",
 	"TC_TEAMCENTER_USER",
 	"TC_TEAMCENTER_PASSWORD",
+	"TC_TEAMCENTER_GROUP",
+	"TC_TEAMCENTER_ROLE",
+	"TC_TEAMCENTER_LOCALE",
 	"TC_TEAMCENTER_SOA_CLIENT_ENCODING",
 ]);
 
@@ -72,11 +78,8 @@ export function buildJavaEnv(cfg) {
 	for (const [key, value] of Object.entries(process.env)) {
 		if (JAVA_ENV_ALLOWLIST.has(key) && value !== undefined) env[key] = value;
 	}
-	// TC_TEAMCENTER_* entram mesmo quando não estão na allowlist acima, mas
-	// nada além deles.
-	for (const [key, value] of Object.entries(process.env)) {
-		if (key.startsWith("TC_TEAMCENTER_")) env[key] = value;
-	}
+	// TC_TEAMCENTER_SOA_CLIENT_ENCODING sempre entra a partir da config
+	// (autodetecção quando vazio); nada além da allowlist nominal acima.
 	env.TC_TEAMCENTER_SOA_CLIENT_ENCODING = cfg.teamcenterSoaClientEncoding ?? "";
 	return env;
 }
@@ -108,10 +111,52 @@ async function buildClasspath(cfg) {
 	return entries.join(cfg.pathSeparator);
 }
 
-async function adapterJarExists(cfg) {
+async function fileNonEmpty(filePath) {
 	try {
-		const stat = await fs.stat(cfg.teamcenterSoaAdapterJar);
+		const stat = await fs.stat(filePath);
 		return stat.isFile() && stat.size > 0;
+	} catch {
+		return false;
+	}
+}
+
+async function adapterJarExists(cfg) {
+	return fileNonEmpty(cfg.teamcenterSoaAdapterJar);
+}
+
+async function sha256File(filePath) {
+	try {
+		const data = await fs.readFile(filePath);
+		return createHash("sha256").update(data).digest("hex");
+	} catch {
+		return null;
+	}
+}
+
+// JAR é um ZIP: os primeiros 4 bytes devem ser o magic PK\x03\x04.
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+
+async function isCorruptJar(filePath) {
+	try {
+		const handle = await fs.open(filePath, "r");
+		try {
+			const header = Buffer.alloc(4);
+			const { bytesRead } = await handle.read(header, 0, 4, 0);
+			return bytesRead !== 4 || !header.equals(ZIP_MAGIC);
+		} finally {
+			await handle.close();
+		}
+	} catch {
+		return true;
+	}
+}
+
+async function javaExecutableResolves(cfg) {
+	if (!cfg.teamcenterJava || cfg.teamcenterJava === "java") return true;
+	// Caminho explícito do Java (TC_TEAMCENTER_JAVA): precisa existir.
+	try {
+		const stat = await fs.stat(cfg.teamcenterJava);
+		return stat.isFile();
 	} catch {
 		return false;
 	}
@@ -121,22 +166,72 @@ async function adapterJarExists(cfg) {
 // A action "preflight" vai além e reporta o estado do ambiente Java/jars.
 export async function soaPreflightChecks(cfg) {
 	const problems = [];
+	if (!(await javaExecutableResolves(cfg))) {
+		problems.push(
+			`Executavel Java nao encontrado: ${cfg.teamcenterJava} (configure TC_TEAMCENTER_JAVA)`,
+		);
+	}
 	if (!(await adapterJarExists(cfg))) {
 		problems.push(
 			`Jar do adaptador SOA nao encontrado ou vazio: ${cfg.teamcenterSoaAdapterJar}`,
+		);
+	} else if (await isCorruptJar(cfg.teamcenterSoaAdapterJar)) {
+		problems.push(
+			`Jar do adaptador SOA corrompido (magic ZIP invalido): ${cfg.teamcenterSoaAdapterJar}`,
 		);
 	}
 	if (cfg.teamcenterSoaLib) {
 		try {
 			const names = await fs.readdir(cfg.teamcenterSoaLib);
-			if (!names.some((name) => name.toLowerCase().endsWith(".jar"))) {
+			const jars = names.filter((name) => name.toLowerCase().endsWith(".jar"));
+			if (jars.length === 0) {
 				problems.push(
 					`Nenhum jar SOA em TC_TEAMCENTER_SOA_LIB: ${cfg.teamcenterSoaLib}`,
 				);
 			}
+			for (const name of jars.sort()) {
+				const full = path.join(cfg.teamcenterSoaLib, name);
+				if (await isCorruptJar(full)) {
+					problems.push(
+						`Jar SOA vazio ou corrompido (magic ZIP invalido): ${name}`,
+					);
+				}
+			}
+			// Duplicidade: mesmo basename em lib e extraJars, ou varias
+			// versoes do mesmo artefato (ex.: log4j-core-2.17.1 + 2.17.2).
+			const artifactOf = (file) =>
+				path.basename(file).replace(/-\d+(\.\d+)*.*\.jar$/i, "");
+			const seenBasename = new Set();
+			const seenArtifact = new Map();
+			const allJars = [
+				...jars.map((name) => path.join(cfg.teamcenterSoaLib, name)),
+				...(cfg.teamcenterSoaExtraJars ?? []),
+			];
+			for (const file of allJars) {
+				const base = path.basename(file);
+				if (seenBasename.has(base)) {
+					problems.push(`Jar duplicado no classpath SOA: ${base}`);
+				}
+				seenBasename.add(base);
+				const artifact = artifactOf(file);
+				if (seenArtifact.has(artifact)) {
+					problems.push(
+						`Multiplas versoes do mesmo jar no classpath SOA: ${seenArtifact.get(artifact)} e ${base}`,
+					);
+				} else {
+					seenArtifact.set(artifact, base);
+				}
+			}
 		} catch (error) {
 			problems.push(
 				`Diretorio de jars SOA inacessivel (${cfg.teamcenterSoaLib}): ${error.message}`,
+			);
+		}
+	}
+	if (cfg.teamcenterSoaTrustStore) {
+		if (!(await fileNonEmpty(cfg.teamcenterSoaTrustStore))) {
+			problems.push(
+				`Truststore nao encontrado ou vazio: ${cfg.teamcenterSoaTrustStore}`,
 			);
 		}
 	}
@@ -164,6 +259,16 @@ export async function soaPreflightChecks(cfg) {
 	return problems;
 }
 
+export async function soaAdapterFingerprint(cfg) {
+	const jar = cfg.teamcenterSoaAdapterJar;
+	const [sha256, corrupt] = await Promise.all([
+		sha256File(jar),
+		isCorruptJar(jar),
+	]);
+	if (!sha256) return { sha256: null, corrupt: true };
+	return { sha256, corrupt };
+}
+
 function runAdapter(request, cfg, { signal } = {}) {
 	return new Promise((resolve, reject) => {
 		let settled = false;
@@ -176,11 +281,21 @@ function runAdapter(request, cfg, { signal } = {}) {
 
 		buildClasspath(cfg)
 			.then((classpath) => {
-				child = spawn(cfg.teamcenterJava, ["-cp", classpath, ADAPTER_MAIN], {
-					windowsHide: true,
-					env: buildJavaEnv(cfg),
-					stdio: ["pipe", "pipe", "pipe"],
-				});
+				const jvmArgs = [];
+				if (cfg.teamcenterSoaTrustStore) {
+					jvmArgs.push(
+						`-Djavax.net.ssl.trustStore=${cfg.teamcenterSoaTrustStore}`,
+					);
+				}
+				child = spawn(
+					cfg.teamcenterJava,
+					[...jvmArgs, "-cp", classpath, ADAPTER_MAIN],
+					{
+						windowsHide: true,
+						env: buildJavaEnv(cfg),
+						stdio: ["pipe", "pipe", "pipe"],
+					},
+				);
 
 				const onAbort = () => {
 					if (child && child.exitCode === null) child.kill();
@@ -276,7 +391,9 @@ export async function runTeamcenterSoa(
 		const message = sanitizeText(
 			envelope.error?.message ?? `Status SOA inesperado: ${envelope.status}`,
 		);
-		throw new Error(`${request.action}: ${message}`);
+		const error = new Error(`${request.action}: ${message}`);
+		if (envelope.error?.code) error.code = envelope.error.code;
+		throw error;
 	}
 
 	const result = envelope.result ?? {};

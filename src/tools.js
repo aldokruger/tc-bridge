@@ -12,6 +12,7 @@ import {
 	enabledSoaActions,
 	ensureSoaPolicy,
 	runTeamcenterSoa,
+	soaAdapterFingerprint,
 	soaPreflightChecks,
 } from "./teamcenter-soa.js";
 import { AuthorizedTaskRunner } from "./zero-trust/task-runner.js";
@@ -496,6 +497,20 @@ export function makeTools(cfg) {
 						problems,
 					};
 				}
+				const fingerprint = await soaAdapterFingerprint(cfg);
+				const result = await runTeamcenterSoa(
+					body,
+					{ ...cfg, soaGate: soaCtx.gate },
+					{
+						correlationId: context.auditId,
+						user: context.userId,
+					},
+				);
+				return {
+					...result,
+					adapter_sha256: fingerprint.sha256,
+					adapter_jar_corrupt: fingerprint.corrupt,
+				};
 			} else {
 				const problems = await soaPreflightChecks(cfg);
 				if (problems.length > 0) {
