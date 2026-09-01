@@ -15,7 +15,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Adaptador local, invocado pelo tc-bridge. Nao abre porta, nao recebe senha
@@ -42,6 +44,7 @@ public final class TeamcenterSoaAdapter {
                 Object response = switch (arguments.action) {
                     case "session_info" -> session.getAvailableServices();
                     case "get_preferences" -> session.getPreferences(arguments.scope, parseStringArray(arguments.preferenceNames));
+                    case "get_object_properties" -> getObjectProperties(connection, arguments);
                     case "execute_saved_query" -> executeSavedQuery(connection, arguments);
                     default -> throw new IllegalArgumentException("Acao SOA nao permitida");
                 };
@@ -72,6 +75,41 @@ public final class TeamcenterSoaAdapter {
         input.maxNumToReturn = arguments.limit;
         input.maxNumToInflate = arguments.limit;
         return SavedQueryService.getService(connection).executeSavedQueries(new SavedQuery.SavedQueryInput[] { input });
+    }
+
+    private static Object getObjectProperties(Connection connection, Arguments arguments) throws Exception {
+        DataManagementService dataManagement = DataManagementService.getService(connection);
+        Method loadObjects = dataManagement.getClass().getMethod("loadObjects", String[].class);
+        Object serviceData = loadObjects.invoke(dataManagement, (Object) new String[] { arguments.objectUid });
+        Method getPlainObject = serviceData.getClass().getMethod("getPlainObject", int.class);
+        Object modelObject = getPlainObject.invoke(serviceData, 0);
+        if (!(modelObject instanceof ModelObject object)) {
+            throw new IllegalArgumentException("object_uid nao referencia um objeto Teamcenter acessivel");
+        }
+
+        String[] propertyNames = parseStringArray(arguments.propertyNames);
+        Method getProperties = dataManagement.getClass().getMethod("getProperties", ModelObject[].class, String[].class);
+        getProperties.invoke(dataManagement, (Object) new ModelObject[] { object }, (Object) propertyNames);
+
+        Map<String, Object> values = new LinkedHashMap<>();
+        Method getPropertyObject = ModelObject.class.getMethod("getPropertyObject", String.class);
+        for (String propertyName : propertyNames) {
+            Object property = getPropertyObject.invoke(object, propertyName);
+            values.put(propertyName, propertyValue(property));
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("uid", object.getUid());
+        result.put("properties", values);
+        return result;
+    }
+
+    private static Object propertyValue(Object property) throws Exception {
+        if (property == null) return null;
+        try {
+            return property.getClass().getMethod("getStringArrayValue").invoke(property);
+        } catch (NoSuchMethodException ignored) {
+            return property.getClass().getMethod("getStringValue").invoke(property);
+        }
     }
 
     private static String requiredEnv(String name) {
@@ -115,6 +153,15 @@ public final class TeamcenterSoaAdapter {
         if (value instanceof String text) return jsonString(text);
         if (value instanceof Number || value instanceof Boolean) return value.toString();
         if (value instanceof ModelObject object) return "{\"uid\":" + jsonString(object.getUid()) + "}";
+        if (value instanceof Map<?, ?> map) {
+            StringBuilder result = new StringBuilder("{");
+            int count = 0;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (count++ > 0) result.append(',');
+                result.append(jsonString(String.valueOf(entry.getKey()))).append(':').append(toJson(entry.getValue(), depth + 1));
+            }
+            return result.append('}').toString();
+        }
         if (depth >= 4) return jsonString("[truncated]");
         if (value.getClass().isArray()) {
             int length = Math.min(Array.getLength(value), 200);
@@ -168,6 +215,8 @@ public final class TeamcenterSoaAdapter {
         String action;
         String scope = "";
         String preferenceNames;
+        String objectUid;
+        String propertyNames;
         String queryUid;
         String entries;
         String values;
@@ -181,6 +230,8 @@ public final class TeamcenterSoaAdapter {
                     case "--action" -> parsed.action = args[i + 1];
                     case "--scope" -> parsed.scope = args[i + 1];
                     case "--preference-names" -> parsed.preferenceNames = args[i + 1];
+                    case "--object-uid" -> parsed.objectUid = args[i + 1];
+                    case "--property-names" -> parsed.propertyNames = args[i + 1];
                     case "--query-uid" -> parsed.queryUid = args[i + 1];
                     case "--entries" -> parsed.entries = args[i + 1];
                     case "--values" -> parsed.values = args[i + 1];

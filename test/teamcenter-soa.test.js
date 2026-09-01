@@ -3,7 +3,21 @@ import test from "node:test";
 import { validateTeamcenterReadRequest } from "../src/teamcenter-soa.js";
 
 test("accepts only read-only SOA requests with bounded JSON arrays", () => {
-	assert.deepEqual(validateTeamcenterReadRequest({ check: "session_info" }), { check: "session_info" });
+	assert.deepEqual(validateTeamcenterReadRequest({ check: "session_info" }), {
+		check: "session_info",
+	});
+	assert.deepEqual(
+		validateTeamcenterReadRequest({
+			check: "get_object_properties",
+			object_uid: "QUGAFoZZZ14QYA",
+			property_names_json: '["awp0CellProperties"]',
+		}),
+		{
+			check: "get_object_properties",
+			objectUid: "QUGAFoZZZ14QYA",
+			propertyNames: ["awp0CellProperties"],
+		},
+	);
 	assert.deepEqual(
 		validateTeamcenterReadRequest({
 			check: "execute_saved_query",
@@ -21,11 +35,21 @@ test("accepts only read-only SOA requests with bounded JSON arrays", () => {
 		},
 	);
 	assert.throws(
-		() => validateTeamcenterReadRequest({ check: "invoke_service", service: "Core" }),
+		() =>
+			validateTeamcenterReadRequest({
+				check: "invoke_service",
+				service: "Core",
+			}),
 		/nao permitida/,
 	);
 	assert.throws(
-		() => validateTeamcenterReadRequest({ check: "execute_saved_query", query_uid: "bad", entries_json: "[]", values_json: "[]" }),
+		() =>
+			validateTeamcenterReadRequest({
+				check: "execute_saved_query",
+				query_uid: "bad",
+				entries_json: "[]",
+				values_json: "[]",
+			}),
 		/query_uid/,
 	);
 });

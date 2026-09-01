@@ -453,11 +453,13 @@ export function makeTools(cfg) {
 	if (cfg.allowTeamcenterRead) {
 		tools.tc_soa_read = {
 			description:
-				"Executa consultas Teamcenter SOA somente leitura: session_info, get_preferences ou execute_saved_query. Nao aceita servicos SOA arbitrarios.",
+				"Executa consultas Teamcenter SOA somente leitura: session_info, get_preferences, get_object_properties ou execute_saved_query. Nao aceita servicos SOA arbitrarios.",
 			input: {
 				check: "string",
 				scope: "string?",
 				preference_names_json: "string?",
+				object_uid: "string?",
+				property_names_json: "string?",
 				query_uid: "string?",
 				entries_json: "string?",
 				values_json: "string?",
