@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { loadConfig } from "../src/config.js";
 import {
 	buildJavaEnv,
 	runTeamcenterSoa,
@@ -82,6 +83,25 @@ test("soaPreflightChecks reporta problemas de configuracao", async () => {
 	assert.ok(
 		problems.some((p) => /Credencial/i.test(p)),
 		"credencial ausente",
+	);
+});
+
+test("soaPreflightChecks aceita credenciais canonicas de loadConfig", async () => {
+	const cfg = loadConfig({
+		token: "test-token",
+		readPaths: ["/tmp"],
+		allowTeamcenterRead: true,
+		teamcenterUrl: "https://tc.example.com/tc",
+		teamcenterUser: "reader",
+		teamcenterPassword: "secret",
+		teamcenterSoaAdapterJar: "/nonexistent/adapter.jar",
+		teamcenterSoaLib: "/nonexistent/lib",
+	});
+	const problems = await soaPreflightChecks(cfg);
+
+	assert.ok(!problems.includes("TC_TEAMCENTER_URL nao configurado"));
+	assert.ok(
+		!problems.includes("Credencial SOA nao configurada (user/password)"),
 	);
 });
 

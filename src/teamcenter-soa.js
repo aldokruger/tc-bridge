@@ -166,6 +166,10 @@ async function javaExecutableResolves(cfg) {
 // A action "preflight" vai além e reporta o estado do ambiente Java/jars.
 export async function soaPreflightChecks(cfg) {
 	const problems = [];
+	const teamcenterUrl = cfg.teamcenterUrl ?? cfg.teamcenterSoaUrl;
+	const teamcenterUser = cfg.teamcenterUser ?? cfg.teamcenterSoaUser;
+	const teamcenterPassword =
+		cfg.teamcenterPassword ?? cfg.teamcenterSoaPassword;
 	if (!(await javaExecutableResolves(cfg))) {
 		problems.push(
 			`Executavel Java nao encontrado: ${cfg.teamcenterJava} (configure TC_TEAMCENTER_JAVA)`,
@@ -235,15 +239,15 @@ export async function soaPreflightChecks(cfg) {
 			);
 		}
 	}
-	if (!cfg.teamcenterSoaUrl) {
+	if (!teamcenterUrl) {
 		problems.push("TC_TEAMCENTER_URL nao configurado");
 	}
-	if (!cfg.teamcenterSoaUser || !cfg.teamcenterSoaPassword) {
+	if (!teamcenterUser || !teamcenterPassword) {
 		problems.push("Credencial SOA nao configurada (user/password)");
 	}
 	if (cfg.teamcenterSoaRequireTls) {
 		try {
-			const url = new URL(cfg.teamcenterSoaUrl);
+			const url = new URL(teamcenterUrl);
 			if (url.protocol !== "https:") {
 				problems.push(
 					"TC_TEAMCENTER_SOA_REQUIRE_TLS=1 exige URL https; protocolo atual: " +
