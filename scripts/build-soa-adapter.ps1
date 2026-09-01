@@ -17,7 +17,12 @@ $source = Join-Path $root 'java\src\main\java\com\aldokruger\tcbridge\Teamcenter
 $classes = Join-Path $OutputDir 'classes'
 $artifact = Join-Path $OutputDir 'tc-bridge-soa-adapter.jar'
 $javacArgumentsFile = Join-Path $OutputDir 'javac.args'
-$classpath = (Get-ChildItem -LiteralPath $TeamcenterLib -Filter '*.jar' | ForEach-Object FullName) -join ';'
+$classpath = (
+  Get-ChildItem -LiteralPath $TeamcenterLib -Filter '*.jar' |
+    Where-Object Length -gt 0 |
+    ForEach-Object FullName
+) -join ';'
+if (-not $classpath) { throw "Nenhum JAR valido encontrado em: $TeamcenterLib" }
 $javacClasspath = $classpath.Replace('\', '/')
 $javacClasses = $classes.Replace('\', '/')
 $javacSource = $source.Replace('\', '/')
