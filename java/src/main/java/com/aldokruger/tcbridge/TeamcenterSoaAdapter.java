@@ -35,9 +35,10 @@ public final class TeamcenterSoaAdapter {
             String group = env("TC_TEAMCENTER_GROUP");
             String role = env("TC_TEAMCENTER_ROLE");
             String locale = env("TC_TEAMCENTER_LOCALE", "en_US");
+            String clientEncoding = env("TC_TEAMCENTER_SOA_CLIENT_ENCODING");
 
             Connection connection = new Connection(url, new StandardCredentialManager(user, password, group, role));
-            setClientEncoding(connection);
+            setClientEncoding(connection, clientEncoding);
             connection.setApplicationName("tc-bridge");
             SessionService session = SessionService.getService(connection);
             session.login(user, password, group, role, locale);
@@ -78,9 +79,10 @@ public final class TeamcenterSoaAdapter {
         return SavedQueryService.getService(connection).executeSavedQueries(new SavedQuery.SavedQueryInput[] { input });
     }
 
-    private static void setClientEncoding(Connection connection) throws Exception {
+    private static void setClientEncoding(Connection connection, String clientEncoding) throws Exception {
+        if (clientEncoding.isBlank()) return;
         Method setOption = Connection.class.getMethod("setOption", String.class, String.class);
-        setOption.invoke(connection, "OPT_CLIENT_ENCODING", "UTF-8");
+        setOption.invoke(connection, "OPT_CLIENT_ENCODING", clientEncoding);
     }
 
     private static Object getObjectProperties(Connection connection, Arguments arguments) throws Exception {

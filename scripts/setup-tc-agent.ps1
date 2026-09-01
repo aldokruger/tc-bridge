@@ -56,6 +56,7 @@ param(
   [string]$TeamcenterRole,
   [string]$TeamcenterLocale = 'en_US',
   [string]$TeamcenterJava = 'java',
+  [string]$TeamcenterSoaClientEncoding,
   [string]$TeamcenterSoaLib,
   [string[]]$TeamcenterSoaExtraJars = @(),
   [string]$TeamcenterSoaAdapterJar,
@@ -221,6 +222,7 @@ Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_GROUP' -Value $TeamcenterGroup
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_ROLE' -Value $TeamcenterRole
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_LOCALE' -Value $TeamcenterLocale
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_JAVA' -Value $TeamcenterJava
+Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_CLIENT_ENCODING' -Value $TeamcenterSoaClientEncoding
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_LIB' -Value $TeamcenterSoaLib
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_EXTRA_JARS' -Value ($TeamcenterSoaExtraJars -join ';')
 Add-EnvValue -Lines $lines -Name 'TC_TEAMCENTER_SOA_ADAPTER_JAR' -Value $TeamcenterSoaAdapterJar

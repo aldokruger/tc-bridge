@@ -115,6 +115,7 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `TC_ALLOW_TEAMCENTER_READ` | `0` | Habilita consultas SOA predefinidas, somente leitura |
 | `TC_TEAMCENTER_URL` / `TC_TEAMCENTER_USER` / `TC_TEAMCENTER_PASSWORD` | — | WebTier e conta técnica SOA; obrigatórios quando habilitado |
 | `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR` | — | Diretório oficial dos jars SOA e jar compilado do adaptador |
+| `TC_TEAMCENTER_SOA_CLIENT_ENCODING` | autodetecção | Define `OPT_CLIENT_ENCODING` somente quando informado; deve coincidir com `TC_CHARACTER_ENCODING_SET` do `tcserver` (por exemplo, `Cp1252` ou `UTF-8`) |
 | `TC_ALLOW_BROWSER_DIAGNOSTICS` | `0` | Habilita diagnósticos Chrome DevTools somente leitura |
 | `TC_BROWSER_DEVTOOLS_URL` | `http://127.0.0.1:9222` | Endpoint CDP local; aceita somente loopback |
 | `TC_ALLOW_LOG_READ` / `TC_TEAMCENTER_LOG_DIR` | `0` / — | Habilita inspeção somente-leitura de logs em uma única pasta permitida |
