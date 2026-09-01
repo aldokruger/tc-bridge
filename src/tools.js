@@ -96,7 +96,7 @@ async function* walkDir(rootPath, maxDepth) {
 	}
 }
 
-export function makeTools(cfg) {
+export function makeTools(cfg, { metrics } = {}) {
 	async function assertReadable(file) {
 		if (!isWithinAllowed(file, cfg.readPaths)) {
 			throw new Error(
@@ -462,6 +462,7 @@ export function makeTools(cfg) {
 	if (cfg.allowTeamcenterRead) {
 		const soaCtx = createSoaContext(cfg);
 		const soaActionsList = enabledSoaActions(cfg);
+		metrics?.attachGate(soaCtx.gate);
 
 		// Avisa na inicializacao sem bloquear; cada action revalida ao rodar.
 		soaPreflightChecks(cfg).then(
@@ -564,7 +565,24 @@ export function makeTools(cfg) {
 				values_json: "string?",
 			},
 			async run(request, context) {
-				return runSoaAction(request, context);
+				const startedAt = Date.now();
+				try {
+					const result = await runSoaAction(request, context);
+					metrics?.recordCheck({
+						failed: result?.ok === false,
+						truncated: result?.truncated === true,
+						partialErrors: result?.partial_errors?.length ?? 0,
+						durationMs: Date.now() - startedAt,
+						bytesReturned: JSON.stringify(result).length,
+					});
+					return result;
+				} catch (error) {
+					metrics?.recordCheck({
+						failed: true,
+						durationMs: Date.now() - startedAt,
+					});
+					throw error;
+				}
 			},
 		};
 	}

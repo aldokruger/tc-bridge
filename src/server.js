@@ -3,7 +3,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import express from "express";
 import { z } from "zod";
+import {
+	buildLiveness,
+	buildMetricsEndpoint,
+	buildReadiness,
+} from "./agent/health.js";
+import { createMetrics } from "./agent/metrics.js";
 import { makeTools } from "./tools.js";
+
+export const APP_VERSION = "0.2.0";
 
 function isInitializeRequest(body) {
 	return body && body.method === "initialize";
@@ -59,7 +67,7 @@ function safeEqual(a, b) {
  * cada sessao (initialize), como o proprio erro recomenda.
  */
 function buildMcpServer(tools) {
-	const server = new McpServer({ name: "tc-bridge", version: "0.2.0" });
+	const server = new McpServer({ name: "tc-bridge", version: APP_VERSION });
 	for (const [name, tool] of Object.entries(tools)) {
 		const shape = Object.fromEntries(
 			Object.entries(tool.input).map(([key, type]) => [key, zodForType(type)]),
@@ -80,10 +88,34 @@ function buildMcpServer(tools) {
 }
 
 export function createApp(cfg) {
-	const tools = makeTools(cfg);
+	const metrics = createMetrics();
+	const tools = makeTools(cfg, { metrics });
 	const sessions = new Map();
 	const app = express();
 	app.use(express.json({ limit: "20mb" }));
+
+	// Liveness e readiness sao publicos (probes de orquestrador nao enviam
+	// token); nao expoem paths, URLs ou credenciais.
+	app.get("/health", async (_req, res) => {
+		res.json(await buildLiveness({ version: APP_VERSION, metrics }));
+	});
+
+	app.get("/ready", async (_req, res) => {
+		const readiness = await buildReadiness({
+			version: APP_VERSION,
+			metrics,
+			checks: [
+				() => ({
+					name: "gate_soa",
+					ok: !cfg.allowTeamcenterRead || !metrics.gateBreakerOpen(),
+					detail: cfg.allowTeamcenterRead
+						? "gate SOA fechado"
+						: "SOA desabilitado",
+				}),
+			],
+		});
+		res.status(readiness.ready ? 200 : 503).json(readiness);
+	});
 
 	app.use((req, res, next) => {
 		const header = req.headers.authorization || "";
@@ -95,7 +127,10 @@ export function createApp(cfg) {
 		next();
 	});
 
-	app.get("/health", (_req, res) => res.json({ ok: true }));
+	// Metrics expoe detalhes do host (cpu/memoria/disco); exige token.
+	app.get("/metrics", async (_req, res) => {
+		res.json(await buildMetricsEndpoint({ version: APP_VERSION, metrics }));
+	});
 
 	const route = async (req, res) => {
 		const sessionId = req.headers["mcp-session-id"];
