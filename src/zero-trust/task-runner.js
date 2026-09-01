@@ -95,7 +95,10 @@ export class AuthorizedTaskRunner {
 				action: claims.action,
 				jti: claims.jti,
 			});
-			const result = await handler(task.parameters);
+			const result = await handler(task.parameters, {
+				auditId,
+				userId: claims.sub,
+			});
 			await this.audit.write({
 				audit_id: auditId,
 				status: "completed",

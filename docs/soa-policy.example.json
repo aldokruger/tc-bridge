@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"profiles": {
+		"item_lookup": {
+			"saved_query": {
+				"saved_query_uid": "LOCAL_CONFIGURED_UID",
+				"allowed_entries": ["Item ID"],
+				"max_results": 20
+			},
+			"objects": {
+				"allowed_types": ["Item", "ItemRevision"],
+				"properties": ["object_name", "object_desc", "item_id"],
+				"max_objects": 5
+			}
+		},
+		"preference_check": {
+			"preferences": {
+				"allowed_scopes": ["site", "user"],
+				"allowed_names": [
+					"TC_default_part_type",
+					"TC_install_directory"
+				]
+			}
+		}
+	}
+}

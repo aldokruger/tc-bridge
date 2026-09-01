@@ -5,8 +5,15 @@ import { makeBrowserTools } from "./browser-agent.js";
 import { isWithinAllowed } from "./config.js";
 import { runDbDiagnostic } from "./db-diagnostics.js";
 import { runDiagnostic } from "./diagnostics.js";
+import { validateSoaAction } from "./soa-actions.js";
 import { makeTeamcenterLogTool } from "./teamcenter-logs.js";
-import { runTeamcenterRead } from "./teamcenter-soa.js";
+import {
+	createSoaContext,
+	enabledSoaActions,
+	ensureSoaPolicy,
+	runTeamcenterSoa,
+	soaPreflightChecks,
+} from "./teamcenter-soa.js";
 import { AuthorizedTaskRunner } from "./zero-trust/task-runner.js";
 
 const MAX_READ_BYTES = 2_000_000;
@@ -451,22 +458,76 @@ export function makeTools(cfg) {
 	}
 
 	if (cfg.allowTeamcenterRead) {
+		const soaCtx = createSoaContext(cfg);
+		const soaActionsList = enabledSoaActions(cfg);
+
+		// Avisa na inicializacao sem bloquear; cada action revalida ao rodar.
+		soaPreflightChecks(cfg).then(
+			(problems) => {
+				for (const problem of problems) {
+					console.warn(`[tc-bridge] preflight SOA: ${problem}`);
+				}
+			},
+			(error) => {
+				console.warn(
+					`[tc-bridge] preflight SOA indisponivel: ${error.message}`,
+				);
+			},
+		);
+
+		async function runSoaAction(request, context = {}) {
+			if (typeof request?.action !== "string" || !request.action) {
+				throw new Error("Parametro obrigatorio: action");
+			}
+			if (!soaActionsList.includes(request.action)) {
+				throw new Error(
+					`Acao SOA desabilitada: ${request.action} (habilite via TC_ALLOW_TEAMCENTER_READ + flag granular)`,
+				);
+			}
+			const policy = await ensureSoaPolicy(soaCtx, cfg);
+			const body = validateSoaAction(request.action, request, policy);
+
+			if (request.action === "teamcenter.soa.preflight") {
+				const problems = await soaPreflightChecks(cfg);
+				if (problems.length > 0) {
+					return {
+						ok: false,
+						source: "node",
+						problems,
+					};
+				}
+			} else {
+				const problems = await soaPreflightChecks(cfg);
+				if (problems.length > 0) {
+					throw new Error(`Preflight SOA falhou: ${problems.join("; ")}`);
+				}
+			}
+
+			return runTeamcenterSoa(
+				body,
+				{ ...cfg, soaGate: soaCtx.gate },
+				{
+					correlationId: context.auditId,
+					user: context.userId,
+				},
+			);
+		}
+
 		tools.tc_soa_read = {
-			description:
-				"Executa consultas Teamcenter SOA somente leitura: session_info, get_preferences, get_object_properties ou execute_saved_query. Nao aceita servicos SOA arbitrarios.",
+			description: `Executa ações Teamcenter SOA somente leitura e autorizadas por policy local. Ações habilitadas: ${soaActionsList.join(", ")}. A capability de saúde não executa query; object.inspect não lê preferências; saved_query.execute usa UID da policy.`,
 			input: {
-				check: "string",
+				action: "string",
+				profile: "string?",
 				scope: "string?",
 				preference_names_json: "string?",
 				object_uid: "string?",
-				property_names_json: "string?",
-				query_uid: "string?",
+				property_name: "string?",
+				dataset_uid: "string?",
 				entries_json: "string?",
 				values_json: "string?",
-				limit: "number?",
 			},
-			async run(request) {
-				return runTeamcenterRead(request, cfg);
+			async run(request, context) {
+				return runSoaAction(request, context);
 			},
 		};
 	}
@@ -487,7 +548,7 @@ export function makeTools(cfg) {
 		const addHandler = (action, toolName) => {
 			const tool = tools[toolName];
 			if (!tool) return;
-			handlers[action] = (parameters) => tool.run(parameters);
+			handlers[action] = (parameters, context) => tool.run(parameters, context);
 			policy[action] = true;
 		};
 		addHandler("browser.status", "browser_status");
@@ -496,7 +557,11 @@ export function makeTools(cfg) {
 		addHandler("browser.performance", "browser_performance");
 		addHandler("diagnostic.run", "run_diagnostic");
 		addHandler("database.diagnostic", "run_db_diagnostic");
-		addHandler("teamcenter.read", "tc_soa_read");
+		if (cfg.allowTeamcenterRead) {
+			for (const action of enabledSoaActions(cfg)) {
+				addHandler(action, "tc_soa_read");
+			}
+		}
 		addHandler("teamcenter.logs.read", "teamcenter_log_inspect");
 
 		const runner = new AuthorizedTaskRunner({

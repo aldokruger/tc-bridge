@@ -48,6 +48,47 @@ export function loadConfig(flags = {}) {
 		flags.allowDbDiagnostics || env.TC_ALLOW_DB_DIAGNOSTICS === "1";
 	const allowTeamcenterRead =
 		flags.allowTeamcenterRead || env.TC_ALLOW_TEAMCENTER_READ === "1";
+	const soaFlag = (flagName, envName, fallback) =>
+		flags[flagName] !== undefined
+			? Boolean(flags[flagName])
+			: env[envName] !== undefined
+				? env[envName] === "1"
+				: fallback;
+	const allowTeamcenterSoaPreflight = soaFlag(
+		"allowTeamcenterSoaPreflight",
+		"TC_ALLOW_TEAMCENTER_SOA_PREFLIGHT",
+		allowTeamcenterRead,
+	);
+	const allowTeamcenterSoaHealth = soaFlag(
+		"allowTeamcenterSoaHealth",
+		"TC_ALLOW_TEAMCENTER_SOA_HEALTH",
+		allowTeamcenterRead,
+	);
+	const allowTeamcenterSoaPreferences = soaFlag(
+		"allowTeamcenterSoaPreferences",
+		"TC_ALLOW_TEAMCENTER_SOA_PREFERENCES",
+		allowTeamcenterRead,
+	);
+	const allowTeamcenterSoaObjects = soaFlag(
+		"allowTeamcenterSoaObjects",
+		"TC_ALLOW_TEAMCENTER_SOA_OBJECTS",
+		allowTeamcenterRead,
+	);
+	const allowTeamcenterSoaQueries = soaFlag(
+		"allowTeamcenterSoaQueries",
+		"TC_ALLOW_TEAMCENTER_SOA_QUERIES",
+		allowTeamcenterRead,
+	);
+	const allowTeamcenterSoaDatasets = soaFlag(
+		"allowTeamcenterSoaDatasets",
+		"TC_ALLOW_TEAMCENTER_SOA_DATASETS",
+		false,
+	);
+	const allowTeamcenterSoaFms = soaFlag(
+		"allowTeamcenterSoaFms",
+		"TC_ALLOW_TEAMCENTER_SOA_FMS",
+		false,
+	);
 	const allowBrowserDiagnostics =
 		flags.allowBrowserDiagnostics || env.TC_ALLOW_BROWSER_DIAGNOSTICS === "1";
 	const allowLogRead = flags.allowLogRead || env.TC_ALLOW_LOG_READ === "1";
@@ -63,6 +104,13 @@ export function loadConfig(flags = {}) {
 		allowDiagnostics,
 		allowDbDiagnostics,
 		allowTeamcenterRead,
+		allowTeamcenterSoaPreflight,
+		allowTeamcenterSoaHealth,
+		allowTeamcenterSoaPreferences,
+		allowTeamcenterSoaObjects,
+		allowTeamcenterSoaQueries,
+		allowTeamcenterSoaDatasets,
+		allowTeamcenterSoaFms,
 		allowBrowserDiagnostics,
 		allowLogRead,
 		allowCapabilityTasks,
@@ -95,6 +143,36 @@ export function loadConfig(flags = {}) {
 		teamcenterSoaExtraJars: commaList(
 			flags.teamcenterSoaExtraJars || env.TC_TEAMCENTER_SOA_EXTRA_JARS,
 		),
+		teamcenterSoaPolicyFile:
+			flags.teamcenterSoaPolicyFile || env.TC_TEAMCENTER_SOA_POLICY_FILE || "",
+		teamcenterSoaMaxConcurrency: positiveNumber(
+			flags.teamcenterSoaMaxConcurrency ||
+				env.TC_TEAMCENTER_SOA_MAX_CONCURRENCY,
+			"TC_TEAMCENTER_SOA_MAX_CONCURRENCY",
+			1,
+		),
+		teamcenterSoaQueueLimit: positiveNumber(
+			flags.teamcenterSoaQueueLimit || env.TC_TEAMCENTER_SOA_QUEUE_LIMIT,
+			"TC_TEAMCENTER_SOA_QUEUE_LIMIT",
+			4,
+		),
+		teamcenterSoaRateLimit: positiveNumber(
+			flags.teamcenterSoaRateLimit || env.TC_TEAMCENTER_SOA_RATE_LIMIT,
+			"TC_TEAMCENTER_SOA_RATE_LIMIT",
+			30,
+		),
+		teamcenterSoaTimeoutMs: positiveNumber(
+			flags.teamcenterSoaTimeoutMs || env.TC_TEAMCENTER_SOA_TIMEOUT_MS,
+			"TC_TEAMCENTER_SOA_TIMEOUT_MS",
+			30_000,
+		),
+		teamcenterSoaRequireTls: soaFlag(
+			"teamcenterSoaRequireTls",
+			"TC_TEAMCENTER_SOA_REQUIRE_TLS",
+			false,
+		),
+		teamcenterSoaTrustStore:
+			flags.teamcenterSoaTrustStore || env.TC_TEAMCENTER_SOA_TRUST_STORE || "",
 		pathSeparator: process.platform === "win32" ? ";" : ":",
 		dbServer: flags.dbServer || env.TC_DB_SERVER || "",
 		dbPort: optionalPort(flags.dbPort || env.TC_DB_PORT, "TC_DB_PORT"),
