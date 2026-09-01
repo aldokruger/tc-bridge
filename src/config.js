@@ -67,17 +67,17 @@ export function loadConfig(flags = {}) {
 	const allowTeamcenterSoaPreferences = soaFlag(
 		"allowTeamcenterSoaPreferences",
 		"TC_ALLOW_TEAMCENTER_SOA_PREFERENCES",
-		allowTeamcenterRead,
+		false,
 	);
 	const allowTeamcenterSoaObjects = soaFlag(
 		"allowTeamcenterSoaObjects",
 		"TC_ALLOW_TEAMCENTER_SOA_OBJECTS",
-		allowTeamcenterRead,
+		false,
 	);
 	const allowTeamcenterSoaQueries = soaFlag(
 		"allowTeamcenterSoaQueries",
 		"TC_ALLOW_TEAMCENTER_SOA_QUERIES",
-		allowTeamcenterRead,
+		false,
 	);
 	const allowTeamcenterSoaDatasets = soaFlag(
 		"allowTeamcenterSoaDatasets",

@@ -45,3 +45,40 @@ test("requires agent identity, issuer and public key for capability tasks", () =
 		/TC_ENFORCE_CAPABILITIES=1 exige/,
 	);
 });
+
+test("master switch SOA habilita somente preflight/health; demais exigem flag granular", () => {
+	const cfg = loadConfig({
+		...baseConfig,
+		allowTeamcenterRead: true,
+		teamcenterUrl: "https://tc.example.com/tc",
+		teamcenterUser: "infodba",
+		teamcenterPassword: "segredo",
+		teamcenterSoaAdapterJar: "C:/adapters/tc-bridge-soa-adapter.jar",
+		teamcenterSoaLib: "C:/tc/lib",
+	});
+	assert.equal(cfg.allowTeamcenterSoaPreflight, true);
+	assert.equal(cfg.allowTeamcenterSoaHealth, true);
+	assert.equal(cfg.allowTeamcenterSoaPreferences, false);
+	assert.equal(cfg.allowTeamcenterSoaObjects, false);
+	assert.equal(cfg.allowTeamcenterSoaQueries, false);
+	assert.equal(cfg.allowTeamcenterSoaDatasets, false);
+	assert.equal(cfg.allowTeamcenterSoaFms, false);
+});
+
+test("flags granulares explicitas ligam preferences/objects/queries", () => {
+	const cfg = loadConfig({
+		...baseConfig,
+		allowTeamcenterRead: true,
+		allowTeamcenterSoaPreferences: true,
+		allowTeamcenterSoaObjects: true,
+		allowTeamcenterSoaQueries: true,
+		teamcenterUrl: "https://tc.example.com/tc",
+		teamcenterUser: "infodba",
+		teamcenterPassword: "segredo",
+		teamcenterSoaAdapterJar: "C:/adapters/tc-bridge-soa-adapter.jar",
+		teamcenterSoaLib: "C:/tc/lib",
+	});
+	assert.equal(cfg.allowTeamcenterSoaPreferences, true);
+	assert.equal(cfg.allowTeamcenterSoaObjects, true);
+	assert.equal(cfg.allowTeamcenterSoaQueries, true);
+});
