@@ -37,6 +37,7 @@ public final class TeamcenterSoaAdapter {
             String locale = env("TC_TEAMCENTER_LOCALE", "en_US");
 
             Connection connection = new Connection(url, new StandardCredentialManager(user, password, group, role));
+            setClientEncoding(connection);
             connection.setApplicationName("tc-bridge");
             SessionService session = SessionService.getService(connection);
             session.login(user, password, group, role, locale);
@@ -75,6 +76,11 @@ public final class TeamcenterSoaAdapter {
         input.maxNumToReturn = arguments.limit;
         input.maxNumToInflate = arguments.limit;
         return SavedQueryService.getService(connection).executeSavedQueries(new SavedQuery.SavedQueryInput[] { input });
+    }
+
+    private static void setClientEncoding(Connection connection) throws Exception {
+        Method setOption = Connection.class.getMethod("setOption", String.class, String.class);
+        setOption.invoke(connection, "OPT_CLIENT_ENCODING", "UTF-8");
     }
 
     private static Object getObjectProperties(Connection connection, Arguments arguments) throws Exception {
