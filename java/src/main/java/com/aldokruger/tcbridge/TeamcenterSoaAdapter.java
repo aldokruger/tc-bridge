@@ -281,13 +281,9 @@ public final class TeamcenterSoaAdapter {
         String propertyName = stringParam(request, "propertyName", null);
         int maxTextLength = intParam(request, "maxTextLength", 1000, 10_000);
 
-        String value = "";
-        Object raw = ((Map<?, ?>) inspected.get("properties")).get(propertyName);
-        if (raw instanceof Map<?, ?> property && property.get("value") != null) {
-            Object v = property.get("value");
-            if (v instanceof List<?> list && !list.isEmpty()) value = String.valueOf(list.get(0));
-            else if (v instanceof String text) value = text;
-        }
+        // loadObjectAndProperties devolve "properties" como List<Map> com chaves
+        // name/value/state; o probe itera a lista em vez de tratar como mapa.
+        String value = findPropertyValue(propertiesList(inspected), propertyName);
         boolean truncatedByLength = value.length() > maxTextLength;
         String limited = truncatedByLength ? value.substring(0, maxTextLength) : value;
 
@@ -631,6 +627,32 @@ public final class TeamcenterSoaAdapter {
         } catch (Throwable error) {
             return null;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> propertiesList(Map<String, Object> inspected) {
+        Object raw = inspected.get("properties");
+        if (raw instanceof List<?> list) {
+            List<Map<String, Object>> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> map) out.add((Map<String, Object>) map);
+            }
+            return out;
+        }
+        return List.of();
+    }
+
+    private static String findPropertyValue(List<Map<String, Object>> properties, String propertyName) {
+        if (propertyName == null || propertyName.isBlank()) return "";
+        for (Map<String, Object> property : properties) {
+            if (!propertyName.equals(property.get("name"))) continue;
+            Object value = property.get("value");
+            if (value == null) return "";
+            if (value instanceof String[] strings && strings.length > 0) return strings[0];
+            if (value instanceof List<?> list && !list.isEmpty()) return String.valueOf(list.get(0));
+            return String.valueOf(value);
+        }
+        return "";
     }
 
     private static void collectPartialErrors(Object node, List<Map<String, String>> partialErrors) {
