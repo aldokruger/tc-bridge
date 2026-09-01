@@ -75,7 +75,8 @@ ORDER BY r.total_elapsed_time DESC;`,
 	[
 		"expensive_queries",
 		{
-			description: "Consultas agregadas mais custosas, identificadas apenas por hash",
+			description:
+				"Consultas agregadas mais custosas, identificadas apenas por hash",
 			query: `
 SELECT TOP (@limit)
   CONVERT(varchar(34), qs.query_hash, 1) AS query_hash,
@@ -93,7 +94,8 @@ ORDER BY qs.total_worker_time DESC;`,
 	[
 		"index_health",
 		{
-			description: "Índices grandes com maior fragmentação, usando modo LIMITED",
+			description:
+				"Índices grandes com maior fragmentação, usando modo LIMITED",
 			query: `
 SELECT TOP (@limit)
   SCHEMA_NAME(o.schema_id) AS schema_name,
@@ -117,7 +119,9 @@ ORDER BY ips.avg_fragmentation_in_percent DESC, ips.page_count DESC;`,
 function assertLimit(value) {
 	if (value === undefined) return DEFAULT_RESULT_LIMIT;
 	if (!Number.isInteger(value) || value < 1 || value > MAX_RESULT_LIMIT) {
-		throw new Error(`Parametro invalido: limit (use um inteiro entre 1 e ${MAX_RESULT_LIMIT})`);
+		throw new Error(
+			`Parametro invalido: limit (use um inteiro entre 1 e ${MAX_RESULT_LIMIT})`,
+		);
 	}
 	return value;
 }
@@ -139,6 +143,10 @@ export function listDbDiagnostics() {
 		check,
 		description: definition.description,
 	}));
+}
+
+export function resolveMssqlModule(importedModule) {
+	return importedModule.default ?? importedModule;
 }
 
 function sqlConfig(cfg) {
@@ -163,9 +171,11 @@ export async function runDbDiagnostic(request, cfg) {
 	const definition = DIAGNOSTICS.get(validated.check);
 	let sql;
 	try {
-		sql = await import("mssql");
+		sql = resolveMssqlModule(await import("mssql"));
 	} catch {
-		throw new Error("Dependencia MSSQL ausente; execute npm install antes de habilitar diagnosticos de banco");
+		throw new Error(
+			"Dependencia MSSQL ausente; execute npm install antes de habilitar diagnosticos de banco",
+		);
 	}
 
 	const pool = new sql.ConnectionPool(sqlConfig(cfg));
