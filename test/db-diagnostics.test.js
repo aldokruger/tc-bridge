@@ -27,7 +27,11 @@ test("accepts only allowlisted database diagnostics", () => {
 		() => validateDbDiagnosticRequest({ check: "waits", limit: 51 }),
 		/limit/,
 	);
-	assert.equal(listDbDiagnostics().length, 5);
+	assert.equal(listDbDiagnostics().length, 7);
+	assert.deepEqual(validateDbDiagnosticRequest({ check: "encoding_profile" }), {
+		check: "encoding_profile",
+		limit: 20,
+	});
 });
 
 test("exposes database diagnostics only when explicitly enabled", () => {

@@ -22,6 +22,40 @@ ORDER BY type_desc, name;`,
 		},
 	],
 	[
+		"encoding_profile",
+		{
+			description:
+				"Collation e pagina de codigo efetivas da instancia e do banco Teamcenter",
+			query: `
+WITH database_settings AS (
+  SELECT CONVERT(nvarchar(128), DATABASEPROPERTYEX(DB_NAME(), 'Collation')) AS database_collation
+)
+SELECT
+  CONVERT(nvarchar(128), SERVERPROPERTY('Collation')) AS server_collation,
+  database_collation,
+  COLLATIONPROPERTY(database_collation, 'CodePage') AS database_code_page
+FROM database_settings;`,
+		},
+	],
+	[
+		"text_column_types",
+		{
+			description:
+				"Quantidade de colunas de texto Teamcenter por tipo fisico no banco",
+			query: `
+SELECT
+  ty.name AS data_type,
+  COUNT(*) AS column_count
+FROM sys.columns AS c
+INNER JOIN sys.tables AS t ON t.object_id = c.object_id
+INNER JOIN sys.types AS ty ON ty.user_type_id = c.user_type_id
+WHERE t.is_ms_shipped = 0
+  AND ty.name IN ('char', 'varchar', 'nchar', 'nvarchar', 'text', 'ntext')
+GROUP BY ty.name
+ORDER BY ty.name;`,
+		},
+	],
+	[
 		"waits",
 		{
 			description: "Principais esperas acumuladas da instância SQL Server",
