@@ -1,0 +1,24 @@
+{
+	"environments": [
+		{
+			"schemaVersion": 1,
+			"environmentId": "tc2606-dev",
+			"classification": "QA",
+			"displayName": "Teamcenter 2606 DEV",
+			"teamcenterRelease": "2606",
+			"hosts": ["SRV26-TC1-DEV"],
+			"expectedComponents": ["server-manager", "webtier", "gateway", "fsc"],
+			"policyProfile": "qa-standard"
+		},
+		{
+			"schemaVersion": 1,
+			"environmentId": "tc2606-prd",
+			"classification": "PRD",
+			"displayName": "Teamcenter 2606 PRD",
+			"teamcenterRelease": "2606",
+			"hosts": ["SRV26-TC1-PRD"],
+			"expectedComponents": ["server-manager", "webtier", "gateway", "fsc"],
+			"policyProfile": "prd-lockdown"
+		}
+	]
+}

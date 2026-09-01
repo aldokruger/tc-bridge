@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readEnvironmentRegistrySync } from "./environments/registry.js";
 
 function commaList(value) {
 	return String(value ?? "")
@@ -145,6 +146,8 @@ export function loadConfig(flags = {}) {
 		),
 		teamcenterSoaPolicyFile:
 			flags.teamcenterSoaPolicyFile || env.TC_TEAMCENTER_SOA_POLICY_FILE || "",
+		environmentRegistryFile:
+			flags.environmentRegistryFile || env.TC_ENVIRONMENT_REGISTRY_FILE || "",
 		teamcenterSoaMaxConcurrency: positiveNumber(
 			flags.teamcenterSoaMaxConcurrency ||
 				env.TC_TEAMCENTER_SOA_MAX_CONCURRENCY,
@@ -263,6 +266,16 @@ export function loadConfig(flags = {}) {
 		throw new Error(
 			"TC_ENFORCE_CAPABILITIES=1 exige TC_ALLOW_CAPABILITY_TASKS=1",
 		);
+	}
+	if (config.environmentRegistryFile) {
+		const registry = readEnvironmentRegistrySync(
+			config.environmentRegistryFile,
+		);
+		config.environmentRegistry = registry.environments;
+		config.environmentRegistryErrors = registry.errors;
+	} else {
+		config.environmentRegistry = new Map();
+		config.environmentRegistryErrors = [];
 	}
 	return config;
 }
