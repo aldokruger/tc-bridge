@@ -44,6 +44,37 @@ export function validateScope(scope, parameters) {
 	}
 }
 
+// Extrai do resultado do handler os campos que interessam à auditoria:
+// duração, volume (bytes), truncamento, avisos e erros parciais. O adaptador
+// SOA expõe esses campos no envelope (durationMs, partialErrors, warnings,
+// truncated) e o mapeamento em runTeamcenterSoa os coloca no result.
+export function auditTelemetry(result) {
+	if (!result || typeof result !== "object") return {};
+	const telemetry = {};
+	if (Number.isFinite(result._meta?.durationMs)) {
+		telemetry.duration_ms = result._meta.durationMs;
+	}
+	if (typeof result._meta?.correlationId === "string") {
+		telemetry.correlation_id = result._meta.correlationId;
+	}
+	if (result.truncated === true) telemetry.truncated = true;
+	if (
+		Array.isArray(result.partial_errors) &&
+		result.partial_errors.length > 0
+	) {
+		telemetry.partial_error_count = result.partial_errors.length;
+	}
+	if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+		telemetry.warning_count = result.warnings.length;
+	}
+	try {
+		telemetry.volume_bytes = Buffer.byteLength(JSON.stringify(result), "utf8");
+	} catch {
+		// Resultado não serializável: volume fica omitido.
+	}
+	return telemetry;
+}
+
 export class AuthorizedTaskRunner {
 	constructor({
 		agentId,
@@ -106,6 +137,7 @@ export class AuthorizedTaskRunner {
 				user_id: claims.sub,
 				action: claims.action,
 				jti: claims.jti,
+				...auditTelemetry(result),
 			});
 			return { audit_id: auditId, result };
 		} catch (error) {
@@ -115,7 +147,9 @@ export class AuthorizedTaskRunner {
 				agent_id: this.agentId,
 				user_id: claims?.sub ?? "unknown",
 				action: claims?.action ?? task.action,
+				jti: claims?.jti,
 				error: error.message,
+				...(error.code ? { error_code: error.code } : {}),
 			});
 			throw error;
 		}
