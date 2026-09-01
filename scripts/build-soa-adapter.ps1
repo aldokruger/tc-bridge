@@ -18,6 +18,9 @@ $classes = Join-Path $OutputDir 'classes'
 $artifact = Join-Path $OutputDir 'tc-bridge-soa-adapter.jar'
 $javacArgumentsFile = Join-Path $OutputDir 'javac.args'
 $classpath = (Get-ChildItem -LiteralPath $TeamcenterLib -Filter '*.jar' | ForEach-Object FullName) -join ';'
+$javacClasspath = $classpath.Replace('\', '/')
+$javacClasses = $classes.Replace('\', '/')
+$javacSource = $source.Replace('\', '/')
 
 New-Item -ItemType Directory -Force -Path $classes | Out-Null
 # The SOA client has enough JARs to exceed Windows' command-line limit.
@@ -26,10 +29,10 @@ New-Item -ItemType Directory -Force -Path $classes | Out-Null
   '-encoding'
   'UTF-8'
   '-cp'
-  ('"{0}"' -f $classpath)
+  ('"{0}"' -f $javacClasspath)
   '-d'
-  ('"{0}"' -f $classes)
-  ('"{0}"' -f $source)
+  ('"{0}"' -f $javacClasses)
+  ('"{0}"' -f $javacSource)
 ) | Set-Content -LiteralPath $javacArgumentsFile -Encoding ascii
 & $javac "@$javacArgumentsFile"
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o adaptador SOA.' }
