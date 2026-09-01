@@ -5,7 +5,7 @@ import { loadConfig } from "../src/config.js";
 import { makeTools } from "../src/tools.js";
 import { ReverseAgentClient } from "../src/zero-trust/agent-client.js";
 
-dotenv.config({ quiet: true });
+dotenv.config({ override: true, quiet: true });
 
 const cfg = loadConfig({});
 const brokerUrl = process.env.TC_BROKER_URL;
@@ -13,7 +13,8 @@ const certificatePath = process.env.TC_AGENT_CERTIFICATE;
 const privateKeyPath = process.env.TC_AGENT_PRIVATE_KEY;
 const certificateAuthorityPath = process.env.TC_BROKER_CA;
 
-if (!cfg.allowCapabilityTasks) throw new Error("TC_ALLOW_CAPABILITY_TASKS=1 e obrigatorio para tc-agent");
+if (!cfg.allowCapabilityTasks)
+	throw new Error("TC_ALLOW_CAPABILITY_TASKS=1 e obrigatorio para tc-agent");
 for (const [name, value] of Object.entries({
 	TC_BROKER_URL: brokerUrl,
 	TC_AGENT_CERTIFICATE: certificatePath,
@@ -22,10 +23,12 @@ for (const [name, value] of Object.entries({
 })) {
 	if (!value) throw new Error(`${name} e obrigatorio para tc-agent`);
 }
-if (!brokerUrl.startsWith("wss://")) throw new Error("TC_BROKER_URL deve usar wss://");
+if (!brokerUrl.startsWith("wss://"))
+	throw new Error("TC_BROKER_URL deve usar wss://");
 
 const tools = makeTools(cfg);
-if (!tools.tc_authorized_task) throw new Error("tc_authorized_task nao foi habilitada");
+if (!tools.tc_authorized_task)
+	throw new Error("tc_authorized_task nao foi habilitada");
 const [cert, key, ca] = await Promise.all([
 	fs.readFile(certificatePath),
 	fs.readFile(privateKeyPath),
