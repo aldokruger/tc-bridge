@@ -94,56 +94,56 @@ Adicione em `~/.config/opencode/opencode.json`:
 
 ## Variáveis de ambiente
 
-| Variável                 | Padrão          | Descrição                                       |
-| ------------------------ | --------------- | ----------------------------------------------- |
-| `TC_TOKEN`               | — (obrigatório) | Token de acesso (Bearer)                        |
-| `TC_HOST`                | `127.0.0.1`     | Host de escuta do HTTP                          |
-| `TC_PORT`                | `4100`          | Porta de escuta                                 |
-| `TC_TUNNEL`              | `localtunnel`   | `localtunnel` ou `static`                       |
-| `TC_PUBLIC_URL`          | —               | URL pública fixa (usada com `TC_TUNNEL=static`) |
-| `TC_ALLOWED_READ_PATHS`  | — (obrigatório) | Whitelist de leitura/cópia, separada por `;` ou `,` |
-| `TC_ALLOW_WRITE`         | `0`             | `1` habilita escrita                            |
-| `TC_ALLOWED_WRITE_PATHS` | —               | Whitelist de escrita, separada por `;` ou `,`   |
-| `TC_STAGING_DIR`         | `./staging`     | Diretório de staging (uso futuro)               |
-| `TC_ALLOW_DIAGNOSTICS`   | `0`             | Habilita diagnósticos PowerShell allowlisted     |
-| `TC_DIAGNOSTIC_HOSTS`    | loopback local  | Hosts permitidos em testes TCP, separados por `;`|
-| `TC_ALLOW_DB_DIAGNOSTICS` | `0`            | Habilita diagnósticos MSSQL predefinidos, somente leitura |
-| `TC_DB_SERVER` / `TC_DB_PORT` | —            | Host/porta MSSQL; obrigatórios ao habilitar o recurso |
-| `TC_DB_NAME` / `TC_DB_USER` / `TC_DB_PASSWORD` | — | Base e conta SQL exclusiva de diagnóstico; obrigatórios ao habilitar o recurso |
-| `TC_DB_ENCRYPT` | `true` | Exige criptografia TLS na conexão MSSQL |
-| `TC_DB_TRUST_SERVER_CERTIFICATE` | `false` | Não habilite exceto quando aprovado para homologação |
-| `TC_ALLOW_TEAMCENTER_READ` | `0` | Habilita consultas SOA predefinidas, somente leitura |
-| `TC_TEAMCENTER_URL` / `TC_TEAMCENTER_USER` / `TC_TEAMCENTER_PASSWORD` | — | WebTier e conta técnica SOA; obrigatórios quando habilitado |
-| `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR` | — | Diretório oficial dos jars SOA e jar compilado do adaptador |
-| `TC_TEAMCENTER_SOA_CLIENT_ENCODING` | autodetecção | Define `OPT_CLIENT_ENCODING` somente quando informado; deve coincidir com `TC_CHARACTER_ENCODING_SET` do `tcserver` (por exemplo, `Cp1252` ou `UTF-8`) |
-| `TC_ALLOW_BROWSER_DIAGNOSTICS` | `0` | Habilita diagnósticos Chrome DevTools somente leitura |
-| `TC_BROWSER_DEVTOOLS_URL` | `http://127.0.0.1:9222` | Endpoint CDP local; aceita somente loopback |
-| `TC_ALLOW_LOG_READ` / `TC_TEAMCENTER_LOG_DIR` | `0` / — | Habilita inspeção somente-leitura de logs em uma única pasta permitida |
-| `TC_ALLOW_CAPABILITY_TASKS` | `0` | Habilita capability Ed25519 assinada, única e auditada para tarefas autorizadas |
-| `TC_ENFORCE_CAPABILITIES` | `0` | Oculta ferramentas diretas privilegiadas e exige capability para Browser, SOA, MSSQL e host |
-| `TC_AGENT_ID` / `TC_CAPABILITY_PUBLIC_KEY` / `TC_CAPABILITY_ISSUER` | — | Identidade do agente, PEM público e emissor confiável das capabilities |
-| `TC_AUDIT_LOG_PATH` | `./logs/tc-agent-audit.jsonl` | Auditoria JSONL local das tarefas autorizadas |
-| `TC_TEAMCENTER_SOA_EXTRA_JARS` | — | JARs extras do cliente SOA, separados por `;` (por exemplo, Log4j) |
+| Variável                                                              | Padrão                        | Descrição                                                                                                                                              |
+| --------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `TC_TOKEN`                                                            | — (obrigatório)               | Token de acesso (Bearer)                                                                                                                               |
+| `TC_HOST`                                                             | `127.0.0.1`                   | Host de escuta do HTTP                                                                                                                                 |
+| `TC_PORT`                                                             | `4100`                        | Porta de escuta                                                                                                                                        |
+| `TC_TUNNEL`                                                           | `localtunnel`                 | `localtunnel` ou `static`                                                                                                                              |
+| `TC_PUBLIC_URL`                                                       | —                             | URL pública fixa (usada com `TC_TUNNEL=static`)                                                                                                        |
+| `TC_ALLOWED_READ_PATHS`                                               | — (obrigatório)               | Whitelist de leitura/cópia, separada por `;` ou `,`                                                                                                    |
+| `TC_ALLOW_WRITE`                                                      | `0`                           | `1` habilita escrita                                                                                                                                   |
+| `TC_ALLOWED_WRITE_PATHS`                                              | —                             | Whitelist de escrita, separada por `;` ou `,`                                                                                                          |
+| `TC_STAGING_DIR`                                                      | `./staging`                   | Diretório de staging (uso futuro)                                                                                                                      |
+| `TC_ALLOW_DIAGNOSTICS`                                                | `0`                           | Habilita diagnósticos PowerShell allowlisted                                                                                                           |
+| `TC_DIAGNOSTIC_HOSTS`                                                 | loopback local                | Hosts permitidos em testes TCP, separados por `;`                                                                                                      |
+| `TC_ALLOW_DB_DIAGNOSTICS`                                             | `0`                           | Habilita diagnósticos MSSQL predefinidos, somente leitura                                                                                              |
+| `TC_DB_SERVER` / `TC_DB_PORT`                                         | —                             | Host/porta MSSQL; obrigatórios ao habilitar o recurso                                                                                                  |
+| `TC_DB_NAME` / `TC_DB_USER` / `TC_DB_PASSWORD`                        | —                             | Base e conta SQL exclusiva de diagnóstico; obrigatórios ao habilitar o recurso                                                                         |
+| `TC_DB_ENCRYPT`                                                       | `true`                        | Exige criptografia TLS na conexão MSSQL                                                                                                                |
+| `TC_DB_TRUST_SERVER_CERTIFICATE`                                      | `false`                       | Não habilite exceto quando aprovado para homologação                                                                                                   |
+| `TC_ALLOW_TEAMCENTER_READ`                                            | `0`                           | Habilita consultas SOA predefinidas, somente leitura                                                                                                   |
+| `TC_TEAMCENTER_URL` / `TC_TEAMCENTER_USER` / `TC_TEAMCENTER_PASSWORD` | —                             | WebTier e conta técnica SOA; obrigatórios quando habilitado                                                                                            |
+| `TC_TEAMCENTER_SOA_LIB` / `TC_TEAMCENTER_SOA_ADAPTER_JAR`             | —                             | Diretório oficial dos jars SOA e jar compilado do adaptador                                                                                            |
+| `TC_TEAMCENTER_SOA_CLIENT_ENCODING`                                   | autodetecção                  | Define `OPT_CLIENT_ENCODING` somente quando informado; deve coincidir com `TC_CHARACTER_ENCODING_SET` do `tcserver` (por exemplo, `Cp1252` ou `UTF-8`) |
+| `TC_ALLOW_BROWSER_DIAGNOSTICS`                                        | `0`                           | Habilita diagnósticos Chrome DevTools somente leitura                                                                                                  |
+| `TC_BROWSER_DEVTOOLS_URL`                                             | `http://127.0.0.1:9222`       | Endpoint CDP local; aceita somente loopback                                                                                                            |
+| `TC_ALLOW_LOG_READ` / `TC_TEAMCENTER_LOG_DIR`                         | `0` / —                       | Habilita inspeção somente-leitura de logs em uma única pasta permitida                                                                                 |
+| `TC_ALLOW_CAPABILITY_TASKS`                                           | `0`                           | Habilita capability Ed25519 assinada, única e auditada para tarefas autorizadas                                                                        |
+| `TC_ENFORCE_CAPABILITIES`                                             | `0`                           | Oculta ferramentas diretas privilegiadas e exige capability para Browser, SOA, MSSQL e host                                                            |
+| `TC_AGENT_ID` / `TC_CAPABILITY_PUBLIC_KEY` / `TC_CAPABILITY_ISSUER`   | —                             | Identidade do agente, PEM público e emissor confiável das capabilities                                                                                 |
+| `TC_AUDIT_LOG_PATH`                                                   | `./logs/tc-agent-audit.jsonl` | Auditoria JSONL local das tarefas autorizadas                                                                                                          |
+| `TC_TEAMCENTER_SOA_EXTRA_JARS`                                        | —                             | JARs extras do cliente SOA, separados por `;` (por exemplo, Log4j)                                                                                     |
 
 ## Ferramentas MCP expostas
 
-| Ferramenta        | Descrição                                                                                                |
-| ----------------- | -------------------------------------------------------------------------------------------------------- |
-| `list_dir`        | Lista conteúdo de um diretório (não recursivo)                                                           |
-| `read_file`       | Lê arquivo de texto (UTF-8 ou latin-1)                                                                   |
-| `stat_file`       | Metadados de arquivo/diretório                                                                           |
-| `search_files`    | Busca por nome com padrão `*`/`?`. Com `recursive=true`, percorre subpastas (`max_depth`, `max_results`) |
-| `list_tree`       | Lista uma árvore de diretórios recursivamente (`max_depth`, `max_results`)                               |
-| `grep_content`    | Busca texto/regex dentro do conteúdo de arquivos, opcionalmente recursivo (pula binários e >5MB)         |
-| `write_file`      | Cria arquivo de forma atômica; overwrite exige confirmação e pode exigir hash (off por padrão; whitelist) |
-| `copy_to_staging` | Copia arquivo permitido para `TC_STAGING_DIR`                                                        |
-| `run_diagnostic`  | Opcional; somente `path_exists`, `service_status` e `tcp_connect` — não aceita comandos arbitrários       |
-| `run_db_diagnostic` | Opcional; apenas consultas MSSQL predefinidas e somente leitura — não aceita SQL arbitrário |
-| `tc_soa_read` | Opcional; consultas Teamcenter SOA predefinidas e somente leitura |
-| `browser_status` / `browser_pages` | Opcional; estado e páginas de um Chrome local em depuração |
-| `browser_capture_diagnostics` / `browser_performance` | Opcional; Console/Network novos e métricas, somente leitura |
-| `teamcenter_log_inspect` | Opcional; lista, busca e lê o final de logs Teamcenter com limites e mascaramento de segredos |
-| `tc_authorized_task` | Opcional; executa capability Ed25519 assinada, de uso único e auditada |
+| Ferramenta                                            | Descrição                                                                                                 |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `list_dir`                                            | Lista conteúdo de um diretório (não recursivo)                                                            |
+| `read_file`                                           | Lê arquivo de texto (UTF-8 ou latin-1)                                                                    |
+| `stat_file`                                           | Metadados de arquivo/diretório                                                                            |
+| `search_files`                                        | Busca por nome com padrão `*`/`?`. Com `recursive=true`, percorre subpastas (`max_depth`, `max_results`)  |
+| `list_tree`                                           | Lista uma árvore de diretórios recursivamente (`max_depth`, `max_results`)                                |
+| `grep_content`                                        | Busca texto/regex dentro do conteúdo de arquivos, opcionalmente recursivo (pula binários e >5MB)          |
+| `write_file`                                          | Cria arquivo de forma atômica; overwrite exige confirmação e pode exigir hash (off por padrão; whitelist) |
+| `copy_to_staging`                                     | Copia arquivo permitido para `TC_STAGING_DIR`                                                             |
+| `run_diagnostic`                                      | Opcional; somente `path_exists`, `service_status` e `tcp_connect` — não aceita comandos arbitrários       |
+| `run_db_diagnostic`                                   | Opcional; apenas consultas MSSQL predefinidas e somente leitura — não aceita SQL arbitrário               |
+| `tc_soa_read`                                         | Opcional; consultas Teamcenter SOA predefinidas e somente leitura                                         |
+| `browser_status` / `browser_pages`                    | Opcional; estado e páginas de um Chrome local em depuração                                                |
+| `browser_capture_diagnostics` / `browser_performance` | Opcional; Console/Network novos e métricas, somente leitura                                               |
+| `teamcenter_log_inspect`                              | Opcional; lista, busca e lê o final de logs Teamcenter com limites e mascaramento de segredos             |
+| `tc_authorized_task`                                  | Opcional; executa capability Ed25519 assinada, de uso único e auditada                                    |
 
 ### Capabilities zero-trust
 
@@ -251,20 +251,57 @@ Quando a instalação SOA não mantiver Log4j no diretório configurado em
 ### Diagnóstico MSSQL
 
 O recurso fica desabilitado por padrão e requer `TC_ALLOW_DB_DIAGNOSTICS=1` e
-uma conta SQL dedicada. As operações são fechadas em allowlist:
-`database_files`, `waits`, `active_requests`, `expensive_queries` e
-`index_health`. Não há ferramenta para enviar SQL, alterar índices, atualizar
-estatísticas, encerrar sessões ou escrever no banco.
+uma conta SQL dedicada. As operações são fechadas em allowlist e somente leitura.
+Não há ferramenta para enviar SQL, alterar índices, atualizar estatísticas,
+encerrar sessões ou escrever no banco.
+
+**Checks disponíveis:**
+
+| Check                    | Descrição                                                   |
+| ------------------------ | ----------------------------------------------------------- |
+| `database_files`         | Tamanho e uso dos arquivos de dados e log                   |
+| `encoding_profile`       | Collation e página de código da instância e do banco        |
+| `text_column_types`      | Quantidade de colunas de texto por tipo físico              |
+| `waits`                  | Principais esperas acumuladas da instância                  |
+| `active_requests`        | Requisições SQL ativas mais demoradas                       |
+| `expensive_queries`      | Consultas agregadas mais custosas (por hash)                |
+| `index_health`           | Índices grandes com maior fragmentação                      |
+| `transaction_log_health` | Uso do log, transações abertas e reutilização               |
+| `backup_history`         | Histórico de backups full, differential e log               |
+| `checkdb_history`        | Evidências de execução e resultado do DBCC CHECKDB          |
+| `query_store_status`     | Estado, tamanho, retenção e modo de captura do Query Store  |
+| `statistics_health`      | Data da última atualização, modificações e amostragem       |
+| `index_usage`            | Seeks, scans, lookups, updates e custo de escrita           |
+| `index_redundancy`       | Índices duplicados, sobrepostos e possivelmente redundantes |
+| `file_io_latency`        | Latência, operações e bytes por arquivo                     |
+| `server_configuration`   | Memória, CPU, MAXDOP e cost threshold                       |
+| `tempdb_health`          | Arquivos, crescimento, capacidade do tempdb                 |
+| `blocking_history`       | Deadlocks e bloqueios históricos do system_health           |
+| `sql_agent_jobs`         | Jobs, agenda, duração, falhas e sobreposição                |
 
 Forneça `TC_DB_PASSWORD` somente no ambiente protegido do processo/serviço no
 host Windows; a CLI não aceita senha como argumento para evitar exposição na
 lista de processos.
 
-Para os diagnósticos baseados em DMVs, o DBA deve conceder à conta somente as
-permissões de consulta requeridas pela versão do SQL Server, normalmente
-`VIEW DATABASE STATE` e, quando necessário, `VIEW SERVER STATE`. O primeiro
-uso deve ser em homologação; recomendações de índice e manutenção exigem
-validação posterior conforme o procedimento suportado do Teamcenter.
+**Permissões SQL necessárias:**
+
+A conta de diagnóstico deve ter as seguintes permissões no banco Teamcenter:
+
+- `VIEW DATABASE STATE` — obrigatória para todos os checks baseados em DMVs
+  (`sys.dm_*`, `sys.dm_db_*`)
+- `VIEW SERVER STATE` — necessária para `server_configuration`,
+  `blocking_history` (system_health XE) e `sql_agent_jobs` (msdb)
+- `VIEW ANY DEFINITION` — opcional, necessária para `query_store_status` e
+  `statistics_health` quando o Query Store ou estatísticas pertencem a schemas
+  específicos
+- Leitura na tabela `msdb.dbo.backupset` e `msdb.dbo.suspect_pages` — para
+  `backup_history` e `checkdb_history`
+- Leitura na tabela `msdb.dbo.sysjobs` / `msdb.dbo.sysjobhistory` — para
+  `sql_agent_jobs`
+- Leitura na sessão extendida `system_health` — para `blocking_history`
+
+O primeiro uso deve ser em homologação; recomendações de índice e manutenção
+exigem validação posterior conforme o procedimento suportado do Teamcenter.
 
 ### Buscas recursivas — limites padrão
 
