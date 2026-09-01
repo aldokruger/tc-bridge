@@ -22,7 +22,7 @@ const evidenceIdSchema = z
 
 const checkIdSchema = z
 	.string()
-	.regex(/^[a-z][a-z0-9_-]{2,63}$/, "check_id invalido");
+	.regex(/^[a-z][a-z0-9._-]{2,63}$/, "check_id invalido");
 
 const ruleIdSchema = z
 	.string()
@@ -90,7 +90,7 @@ export const checkResultSchema = z
 		checkId: checkIdSchema,
 		collector: z.string().min(1).max(64),
 		collectorVersion: z.string().min(1).max(16),
-		environmentId: environmentIdSchema,
+		environmentId: environmentIdSchema.optional(),
 		componentId: componentIdSchema.optional(),
 		status: z.enum(CHECK_STATUSES),
 		startedAt: datetimeSchema,

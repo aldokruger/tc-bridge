@@ -2,10 +2,11 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { makeBrowserTools } from "./browser-agent.js";
+import { soaCheckResult } from "./collectors/collector-sdk.js";
 import { isWithinAllowed } from "./config.js";
 import { runDbDiagnostic } from "./db-diagnostics.js";
 import { runDiagnostic } from "./diagnostics.js";
-import { validateSoaAction } from "./soa-actions.js";
+import { SOA_ACTION_BUDGETS, validateSoaAction } from "./soa-actions.js";
 import { makeTeamcenterLogTool } from "./teamcenter-logs.js";
 import {
 	createSoaContext,
@@ -495,6 +496,14 @@ export function makeTools(cfg) {
 						ok: false,
 						source: "node",
 						problems,
+						check_result: soaCheckResult(
+							{ ok: false, problems },
+							{
+								action: request.action,
+								impactBudget: SOA_ACTION_BUDGETS[request.action],
+								environmentRegistry: cfg.environmentRegistry,
+							},
+						),
 					};
 				}
 				const fingerprint = await soaAdapterFingerprint(cfg);
@@ -510,6 +519,11 @@ export function makeTools(cfg) {
 					...result,
 					adapter_sha256: fingerprint.sha256,
 					adapter_jar_corrupt: fingerprint.corrupt,
+					check_result: soaCheckResult(result, {
+						action: request.action,
+						impactBudget: SOA_ACTION_BUDGETS[request.action],
+						environmentRegistry: cfg.environmentRegistry,
+					}),
 				};
 			} else {
 				const problems = await soaPreflightChecks(cfg);
@@ -518,7 +532,7 @@ export function makeTools(cfg) {
 				}
 			}
 
-			return runTeamcenterSoa(
+			const result = await runTeamcenterSoa(
 				body,
 				{ ...cfg, soaGate: soaCtx.gate },
 				{
@@ -526,6 +540,14 @@ export function makeTools(cfg) {
 					user: context.userId,
 				},
 			);
+			return {
+				...result,
+				check_result: soaCheckResult(result, {
+					action: request.action,
+					impactBudget: SOA_ACTION_BUDGETS[request.action],
+					environmentRegistry: cfg.environmentRegistry,
+				}),
+			};
 		}
 
 		tools.tc_soa_read = {

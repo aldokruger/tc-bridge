@@ -134,6 +134,20 @@ const ACTION_TIMEOUT_CAP = {
 	"teamcenter.soa.fms.probe": 20_000,
 };
 
+// Impact budget por action (plano, secao 8.2); carregado no envelope CheckResult.
+export const SOA_ACTION_BUDGETS = {
+	"teamcenter.soa.preflight": "zero",
+	"teamcenter.soa.connection_health": "low",
+	"teamcenter.soa.session_context": "low",
+	"teamcenter.soa.health_bundle": "low",
+	"teamcenter.soa.preferences.read": "medium",
+	"teamcenter.soa.encoding_probe": "medium",
+	"teamcenter.soa.object.inspect": "medium",
+	"teamcenter.soa.saved_query.execute": "medium",
+	"teamcenter.soa.dataset.inspect": "high",
+	"teamcenter.soa.fms.probe": "high",
+};
+
 export function soaActions() {
 	return Object.keys(ACTION_SCHEMAS);
 }
