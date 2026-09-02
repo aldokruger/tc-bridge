@@ -38,6 +38,7 @@ const client = new ReverseAgentClient({
 	brokerUrl,
 	agentId: cfg.agentId,
 	tls: { cert, key, ca },
+	resultBufferCapacity: cfg.agentResultBufferCapacity,
 	onAccepted: (issuer) => tools.tc_authorized_task.setIssuer(issuer),
 	executeTask: (task) => tools.tc_authorized_task.run(task),
 });

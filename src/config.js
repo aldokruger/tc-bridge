@@ -117,6 +117,11 @@ export function loadConfig(flags = {}) {
 		allowCapabilityTasks,
 		enforceCapabilities,
 		agentId: flags.agentId || env.TC_AGENT_ID || "",
+		agentResultBufferCapacity: positiveNumber(
+			flags.agentResultBufferCapacity || env.TC_AGENT_RESULT_BUFFER_CAPACITY,
+			"TC_AGENT_RESULT_BUFFER_CAPACITY",
+			100,
+		),
 		capabilityPublicKey:
 			flags.capabilityPublicKey || env.TC_CAPABILITY_PUBLIC_KEY || "",
 		capabilityIssuer: flags.capabilityIssuer || env.TC_CAPABILITY_ISSUER || "",
