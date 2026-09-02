@@ -1,12 +1,7 @@
 import path from "node:path";
+import { AGENT_FIELDS } from "./configuration/field-catalog.js";
+import { ConfigurationManager } from "./configuration/manager.js";
 import { readEnvironmentRegistrySync } from "./environments/registry.js";
-
-function commaList(value) {
-	return String(value ?? "")
-		.split(/[;,]/)
-		.map((p) => p.trim())
-		.filter(Boolean);
-}
 
 function canonicalPath(value) {
 	const normalized = path.posix
@@ -16,24 +11,11 @@ function canonicalPath(value) {
 	return process.platform === "win32" ? normalized.toLowerCase() : normalized;
 }
 
-function optionalPort(value, name) {
-	if (value === undefined || value === null || value === "") return undefined;
-	const port = Number(value);
-	if (!Number.isInteger(port) || port < 1 || port > 65535) {
-		throw new Error(`${name} deve ser uma porta entre 1 e 65535`);
-	}
-	return port;
-}
-
-function positiveNumber(value, name, fallback) {
-	if (value === undefined || value === null || value === "") return fallback;
-	const number = Number(value);
-	if (!Number.isInteger(number) || number < 1 || number > 120_000) {
-		throw new Error(`${name} deve ser um inteiro entre 1 e 120000`);
-	}
-	return number;
-}
-
+// loadConfig permanece sincrono e mantem o shape, as mensagens de erro e a
+// ordem das validacoes. A resolucao de valores (flags -> env -> default) foi
+// delegada ao catalogo unico (AGENT_FIELDS) via ConfigurationManager
+// (composeEffectiveSync ignora o documento gerenciado nesta fase; o arquivo
+// passa a valer na Fase 2 sob teste de equivalencia — plano §6.4).
 export function loadConfig(flags = {}) {
 	const env = process.env;
 	const token = flags.token || env.TC_TOKEN;
@@ -42,188 +24,24 @@ export function loadConfig(flags = {}) {
 			"TC_TOKEN (ou --token) é obrigatório — o MCP só atende com token de acesso",
 		);
 	}
-	const allowWrite = flags.allowWrite || env.TC_ALLOW_WRITE === "1";
-	const allowDiagnostics =
-		flags.allowDiagnostics || env.TC_ALLOW_DIAGNOSTICS === "1";
-	const allowDbDiagnostics =
-		flags.allowDbDiagnostics || env.TC_ALLOW_DB_DIAGNOSTICS === "1";
-	const allowTeamcenterRead =
-		flags.allowTeamcenterRead || env.TC_ALLOW_TEAMCENTER_READ === "1";
-	const soaFlag = (flagName, envName, fallback) =>
-		flags[flagName] !== undefined
-			? Boolean(flags[flagName])
-			: env[envName] !== undefined
-				? env[envName] === "1"
-				: fallback;
-	const allowTeamcenterSoaPreflight = soaFlag(
-		"allowTeamcenterSoaPreflight",
-		"TC_ALLOW_TEAMCENTER_SOA_PREFLIGHT",
-		allowTeamcenterRead,
-	);
-	const allowTeamcenterSoaHealth = soaFlag(
-		"allowTeamcenterSoaHealth",
-		"TC_ALLOW_TEAMCENTER_SOA_HEALTH",
-		allowTeamcenterRead,
-	);
-	const allowTeamcenterSoaPreferences = soaFlag(
-		"allowTeamcenterSoaPreferences",
-		"TC_ALLOW_TEAMCENTER_SOA_PREFERENCES",
-		false,
-	);
-	const allowTeamcenterSoaObjects = soaFlag(
-		"allowTeamcenterSoaObjects",
-		"TC_ALLOW_TEAMCENTER_SOA_OBJECTS",
-		false,
-	);
-	const allowTeamcenterSoaQueries = soaFlag(
-		"allowTeamcenterSoaQueries",
-		"TC_ALLOW_TEAMCENTER_SOA_QUERIES",
-		false,
-	);
-	const allowTeamcenterSoaDatasets = soaFlag(
-		"allowTeamcenterSoaDatasets",
-		"TC_ALLOW_TEAMCENTER_SOA_DATASETS",
-		false,
-	);
-	const allowTeamcenterSoaFms = soaFlag(
-		"allowTeamcenterSoaFms",
-		"TC_ALLOW_TEAMCENTER_SOA_FMS",
-		false,
-	);
-	const allowBrowserDiagnostics =
-		flags.allowBrowserDiagnostics || env.TC_ALLOW_BROWSER_DIAGNOSTICS === "1";
-	const allowLogRead = flags.allowLogRead || env.TC_ALLOW_LOG_READ === "1";
-	const allowCapabilityTasks =
-		flags.allowCapabilityTasks || env.TC_ALLOW_CAPABILITY_TASKS === "1";
-	const enforceCapabilities =
-		flags.enforceCapabilities || env.TC_ENFORCE_CAPABILITIES === "1";
-	const config = {
-		token,
-		host: flags.host || env.TC_HOST || "127.0.0.1",
-		port: Number(flags.port || env.TC_PORT || "4100"),
-		allowWrite,
-		allowDiagnostics,
-		allowDbDiagnostics,
-		allowTeamcenterRead,
-		allowTeamcenterSoaPreflight,
-		allowTeamcenterSoaHealth,
-		allowTeamcenterSoaPreferences,
-		allowTeamcenterSoaObjects,
-		allowTeamcenterSoaQueries,
-		allowTeamcenterSoaDatasets,
-		allowTeamcenterSoaFms,
-		allowBrowserDiagnostics,
-		allowLogRead,
-		allowCapabilityTasks,
-		enforceCapabilities,
-		agentId: flags.agentId || env.TC_AGENT_ID || "",
-		agentResultBufferCapacity: positiveNumber(
-			flags.agentResultBufferCapacity || env.TC_AGENT_RESULT_BUFFER_CAPACITY,
-			"TC_AGENT_RESULT_BUFFER_CAPACITY",
-			100,
-		),
-		capabilityPublicKey:
-			flags.capabilityPublicKey || env.TC_CAPABILITY_PUBLIC_KEY || "",
-		capabilityIssuer: flags.capabilityIssuer || env.TC_CAPABILITY_ISSUER || "",
-		auditLogPath:
-			flags.auditLogPath ||
-			env.TC_AUDIT_LOG_PATH ||
-			path.join(".", "logs", "tc-agent-audit.jsonl"),
-		browserDevtoolsUrl:
-			flags.browserDevtoolsUrl ||
-			env.TC_BROWSER_DEVTOOLS_URL ||
-			"http://127.0.0.1:9222",
-		teamcenterLogDir: flags.teamcenterLogDir || env.TC_TEAMCENTER_LOG_DIR || "",
-		teamcenterUrl: flags.teamcenterUrl || env.TC_TEAMCENTER_URL || "",
-		teamcenterUser: flags.teamcenterUser || env.TC_TEAMCENTER_USER || "",
-		teamcenterPassword:
-			flags.teamcenterPassword || env.TC_TEAMCENTER_PASSWORD || "",
-		teamcenterGroup: flags.teamcenterGroup || env.TC_TEAMCENTER_GROUP || "",
-		teamcenterRole: flags.teamcenterRole || env.TC_TEAMCENTER_ROLE || "",
-		teamcenterLocale:
-			flags.teamcenterLocale || env.TC_TEAMCENTER_LOCALE || "en_US",
-		teamcenterJava: flags.teamcenterJava || env.TC_TEAMCENTER_JAVA || "java",
-		teamcenterSoaAdapterJar:
-			flags.teamcenterSoaAdapterJar || env.TC_TEAMCENTER_SOA_ADAPTER_JAR || "",
-		teamcenterSoaLib: flags.teamcenterSoaLib || env.TC_TEAMCENTER_SOA_LIB || "",
-		teamcenterSoaExtraJars: commaList(
-			flags.teamcenterSoaExtraJars || env.TC_TEAMCENTER_SOA_EXTRA_JARS,
-		),
-		teamcenterSoaPolicyFile:
-			flags.teamcenterSoaPolicyFile || env.TC_TEAMCENTER_SOA_POLICY_FILE || "",
-		environmentRegistryFile:
-			flags.environmentRegistryFile || env.TC_ENVIRONMENT_REGISTRY_FILE || "",
-		teamcenterSoaMaxConcurrency: positiveNumber(
-			flags.teamcenterSoaMaxConcurrency ||
-				env.TC_TEAMCENTER_SOA_MAX_CONCURRENCY,
-			"TC_TEAMCENTER_SOA_MAX_CONCURRENCY",
-			1,
-		),
-		teamcenterSoaQueueLimit: positiveNumber(
-			flags.teamcenterSoaQueueLimit || env.TC_TEAMCENTER_SOA_QUEUE_LIMIT,
-			"TC_TEAMCENTER_SOA_QUEUE_LIMIT",
-			4,
-		),
-		teamcenterSoaRateLimit: positiveNumber(
-			flags.teamcenterSoaRateLimit || env.TC_TEAMCENTER_SOA_RATE_LIMIT,
-			"TC_TEAMCENTER_SOA_RATE_LIMIT",
-			30,
-		),
-		teamcenterSoaTimeoutMs: positiveNumber(
-			flags.teamcenterSoaTimeoutMs || env.TC_TEAMCENTER_SOA_TIMEOUT_MS,
-			"TC_TEAMCENTER_SOA_TIMEOUT_MS",
-			30_000,
-		),
-		teamcenterSoaRequireTls: soaFlag(
-			"teamcenterSoaRequireTls",
-			"TC_TEAMCENTER_SOA_REQUIRE_TLS",
-			false,
-		),
-		teamcenterSoaTrustStore:
-			flags.teamcenterSoaTrustStore || env.TC_TEAMCENTER_SOA_TRUST_STORE || "",
-		pathSeparator: process.platform === "win32" ? ";" : ":",
-		dbServer: flags.dbServer || env.TC_DB_SERVER || "",
-		dbPort: optionalPort(flags.dbPort || env.TC_DB_PORT, "TC_DB_PORT"),
-		dbName: flags.dbName || env.TC_DB_NAME || "",
-		dbUser: flags.dbUser || env.TC_DB_USER || "",
-		dbPassword: flags.dbPassword || env.TC_DB_PASSWORD || "",
-		dbEncrypt: (flags.dbEncrypt || env.TC_DB_ENCRYPT || "true") !== "false",
-		dbTrustServerCertificate:
-			(flags.dbTrustServerCertificate ||
-				env.TC_DB_TRUST_SERVER_CERTIFICATE ||
-				"false") === "true",
-		dbConnectTimeoutMs: positiveNumber(
-			flags.dbConnectTimeoutMs || env.TC_DB_CONNECT_TIMEOUT_MS,
-			"TC_DB_CONNECT_TIMEOUT_MS",
-			10_000,
-		),
-		dbRequestTimeoutMs: positiveNumber(
-			flags.dbRequestTimeoutMs || env.TC_DB_REQUEST_TIMEOUT_MS,
-			30_000,
-		),
-		diagnosticHosts: commaList(flags.diagnosticHosts || env.TC_DIAGNOSTIC_HOSTS)
-			.length
-			? commaList(flags.diagnosticHosts || env.TC_DIAGNOSTIC_HOSTS)
-			: ["localhost", "127.0.0.1", "::1"],
-		readPaths: commaList(flags.readPaths || env.TC_ALLOWED_READ_PATHS),
-		writePaths: commaList(flags.writePaths || env.TC_ALLOWED_WRITE_PATHS),
-		staging: flags.staging || env.TC_STAGING_DIR || path.join(".", "staging"),
-		tunnel: flags.tunnel || env.TC_TUNNEL || "localtunnel",
-		publicUrl: flags.publicUrl || env.TC_PUBLIC_URL || "",
-		tunnelHost: flags.tunnelHost || env.TC_TUNNEL_HOST || "",
-		cloudflaredPath: flags.cloudflaredPath || env.TC_CLOUDFLARED_PATH || "",
-	};
+	const manager = new ConfigurationManager({
+		target: "agent",
+		fields: AGENT_FIELDS,
+		env,
+		flags,
+	});
+	const config = manager.composeEffectiveSync(flags);
 	if (config.readPaths.length === 0) {
 		throw new Error(
 			"TC_ALLOWED_READ_PATHS (ou --read-paths) exige pelo menos um path",
 		);
 	}
-	if (allowWrite && config.writePaths.length === 0) {
+	if (config.allowWrite && config.writePaths.length === 0) {
 		throw new Error(
 			"TC_ALLOW_WRITE=1 exige TC_ALLOWED_WRITE_PATHS com pelo menos um path",
 		);
 	}
-	if (allowDbDiagnostics) {
+	if (config.allowDbDiagnostics) {
 		for (const [name, value] of Object.entries({
 			TC_DB_SERVER: config.dbServer,
 			TC_DB_NAME: config.dbName,
@@ -236,7 +54,7 @@ export function loadConfig(flags = {}) {
 				);
 		}
 	}
-	if (allowTeamcenterRead) {
+	if (config.allowTeamcenterRead) {
 		for (const [name, value] of Object.entries({
 			TC_TEAMCENTER_URL: config.teamcenterUrl,
 			TC_TEAMCENTER_USER: config.teamcenterUser,
@@ -250,12 +68,12 @@ export function loadConfig(flags = {}) {
 				);
 		}
 	}
-	if (allowLogRead && !config.teamcenterLogDir) {
+	if (config.allowLogRead && !config.teamcenterLogDir) {
 		throw new Error(
 			"TC_TEAMCENTER_LOG_DIR e obrigatorio quando TC_ALLOW_LOG_READ=1",
 		);
 	}
-	if (allowCapabilityTasks) {
+	if (config.allowCapabilityTasks) {
 		for (const [name, value] of Object.entries({
 			TC_AGENT_ID: config.agentId,
 			TC_CAPABILITY_PUBLIC_KEY: config.capabilityPublicKey,
@@ -267,7 +85,7 @@ export function loadConfig(flags = {}) {
 				);
 		}
 	}
-	if (enforceCapabilities && !allowCapabilityTasks) {
+	if (config.enforceCapabilities && !config.allowCapabilityTasks) {
 		throw new Error(
 			"TC_ENFORCE_CAPABILITIES=1 exige TC_ALLOW_CAPABILITY_TASKS=1",
 		);
