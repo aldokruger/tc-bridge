@@ -54,6 +54,26 @@ export function loadConfig(flags = {}) {
 				);
 		}
 	}
+	if (config.allowDbCompare) {
+		for (const [name, value] of Object.entries({
+			TC_DB_TARGET_SERVER: config.dbTargetServer,
+			TC_DB_TARGET_NAME: config.dbTargetName,
+		})) {
+			if (!value)
+				throw new Error(`${name} e obrigatorio quando TC_ALLOW_DB_COMPARE=1`);
+		}
+		for (const [name, value] of Object.entries({
+			TC_DB_SERVER: config.dbServer,
+			TC_DB_NAME: config.dbName,
+			TC_DB_USER: config.dbUser,
+			TC_DB_PASSWORD: config.dbPassword,
+		})) {
+			if (!value)
+				throw new Error(
+					`${name} e obrigatorio quando TC_ALLOW_DB_COMPARE=1 (a conta de diagnostico e reutilizada no ambiente alvo)`,
+				);
+		}
+	}
 	if (config.allowTeamcenterRead) {
 		for (const [name, value] of Object.entries({
 			TC_TEAMCENTER_URL: config.teamcenterUrl,

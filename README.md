@@ -112,6 +112,9 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `TC_DB_NAME` / `TC_DB_USER` / `TC_DB_PASSWORD`                                       | —                                   | Base e conta SQL exclusiva de diagnóstico; obrigatórios ao habilitar o recurso                                                                         |
 | `TC_DB_ENCRYPT`                                                                      | `true`                              | Exige criptografia TLS na conexão MSSQL                                                                                                                |
 | `TC_DB_TRUST_SERVER_CERTIFICATE`                                                     | `false`                             | Não habilite exceto quando aprovado para homologação                                                                                                   |
+| `TC_ALLOW_DB_COMPARE`                                                                | `0`                                 | Habilita comparacao MSSQL entre a base configurada e o ambiente alvo declarado em TC_DB_TARGET_* (mesma conta SQL de diagnostico; somente leitura)     |
+| `TC_DB_TARGET_SERVER` / `TC_DB_TARGET_PORT`                                          | —                                   | Host e porta MSSQL do ambiente alvo da comparacao; obrigatorios ao habilitar o recurso (porta opcional: herda TC_DB_PORT)                              |
+| `TC_DB_TARGET_NAME`                                                                  | —                                   | Base MSSQL do ambiente alvo; obrigatoria ao habilitar o recurso                                                                                        |
 | `TC_ALLOW_TEAMCENTER_READ`                                                           | `0`                                 | Master switch das consultas SOA somente leitura; sem ele, nenhuma action SOA é exposta                                                                 |
 | `TC_ALLOW_TEAMCENTER_SOA_PREFLIGHT` / `_HEALTH`                                      | herda de `TC_ALLOW_TEAMCENTER_READ` | Health/preflight seguem o master switch; `0` desliga uma action mesmo com ele ligado                                                                   |
 | `TC_ALLOW_TEAMCENTER_SOA_PREFERENCES` / `_OBJECTS` / `_QUERIES`                      | `0`                                 | Exigem flag granular explícita (não herdam do master switch) + profile na policy local; PRD inicia somente com preflight/health                        |
@@ -145,8 +148,11 @@ Adicione em `~/.config/opencode/opencode.json`:
 | `grep_content`                                        | Busca texto/regex dentro do conteúdo de arquivos, opcionalmente recursivo (pula binários e >5MB)          |
 | `write_file`                                          | Cria arquivo de forma atômica; overwrite exige confirmação e pode exigir hash (off por padrão; whitelist) |
 | `copy_to_staging`                                     | Copia arquivo permitido para `TC_STAGING_DIR`                                                             |
+| `bmide_model`                                         | Le o modelo BMIDE (default.xml) de um path permitido: business objects, properties, LOVs e naming rules com contagens |
 | `run_diagnostic`                                      | Opcional; somente `path_exists`, `service_status` e `tcp_connect` — não aceita comandos arbitrários       |
 | `run_db_diagnostic`                                   | Opcional; apenas consultas MSSQL predefinidas e somente leitura — não aceita SQL arbitrário               |
+| `upgrade_readiness`                                   | Opcional; relatorio de pre-requisitos MSSQL para upgrade Teamcenter, somente leitura                      |
+| `compare_environments`                                | Opcional; compara a base configurada com o alvo de TC_DB_TARGET_* (mesma conta de diagnostico), somente leitura |
 | `tc_soa_read`                                         | Opcional; consultas Teamcenter SOA predefinidas e somente leitura                                         |
 | `browser_status` / `browser_pages`                    | Opcional; estado e páginas de um Chrome local em depuração                                                |
 | `browser_capture_diagnostics` / `browser_performance` | Opcional; Console/Network novos e métricas, somente leitura                                               |
@@ -285,6 +291,12 @@ uma conta SQL dedicada. As operações são fechadas em allowlist:
 `database_files`, `waits`, `active_requests`, `expensive_queries` e
 `index_health`. Não há ferramenta para enviar SQL, alterar índices, atualizar
 estatísticas, encerrar sessões ou escrever no banco.
+
+Além do diagnóstico avulso, existem dois relatórios compostos somente
+leitura usando a mesma conta: `upgrade_readiness` (pré-requisitos de
+upgrade da base configurada) e `compare_environments` (base configurada vs.
+ambiente alvo declarado em `TC_DB_TARGET_SERVER`/`TC_DB_TARGET_NAME`,
+exigindo `TC_ALLOW_DB_COMPARE=1`). O host alvo nunca é informado pelo chamador.
 
 Forneça `TC_DB_PASSWORD` somente no ambiente protegido do processo/serviço no
 host Windows; a CLI não aceita senha como argumento para evitar exposição na

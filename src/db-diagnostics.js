@@ -200,21 +200,31 @@ function sqlConfig(cfg) {
 	};
 }
 
-export async function runDbDiagnostic(request, cfg) {
-	const validated = validateDbDiagnosticRequest(request);
-	const definition = DIAGNOSTICS.get(validated.check);
-	let sql;
+async function loadMssql() {
 	try {
-		sql = resolveMssqlModule(await import("mssql"));
+		return resolveMssqlModule(await import("mssql"));
 	} catch {
 		throw new Error(
 			"Dependencia MSSQL ausente; execute npm install antes de habilitar diagnosticos de banco",
 		);
 	}
+}
 
-	const pool = new sql.ConnectionPool(sqlConfig(cfg));
+async function withSqlPool(sql, dbConfig, work) {
+	const pool = new sql.ConnectionPool(sqlConfig(dbConfig));
 	try {
 		await pool.connect();
+		return await work(pool);
+	} finally {
+		await pool.close().catch(() => {});
+	}
+}
+
+export async function runDbDiagnostic(request, cfg) {
+	const validated = validateDbDiagnosticRequest(request);
+	const definition = DIAGNOSTICS.get(validated.check);
+	const sql = await loadMssql();
+	return withSqlPool(sql, cfg, async (pool) => {
 		const statement = pool.request().input("limit", sql.Int, validated.limit);
 		const result = await statement.query(definition.query);
 		return {
@@ -224,7 +234,268 @@ export async function runDbDiagnostic(request, cfg) {
 			row_count: result.recordset.length,
 			limit: validated.limit,
 		};
-	} finally {
-		await pool.close().catch(() => {});
+	});
+}
+
+const SNAPSHOT_QUERIES = {
+	server_version: `
+SELECT
+  CONVERT(nvarchar(128), SERVERPROPERTY('ProductLevel')) AS level,
+  CONVERT(nvarchar(128), SERVERPROPERTY('ProductVersion')) AS version,
+  CONVERT(nvarchar(128), SERVERPROPERTY('Edition')) AS edition`,
+	collation: `
+SELECT CONVERT(nvarchar(128), DATABASEPROPERTYEX(DB_NAME(), 'Collation')) AS collation`,
+	total_size_mb: `
+SELECT CAST(SUM(size * 8.0 / 1024) AS decimal(18,2)) AS total_size_mb
+FROM sys.database_files`,
+	index_count: `
+SELECT COUNT(*) AS index_count
+FROM sys.indexes AS i
+INNER JOIN sys.tables AS t ON t.object_id = i.object_id
+WHERE t.is_ms_shipped = 0
+  AND i.index_id > 0`,
+};
+
+const COMPARE_FIELDS = [
+	"server_version",
+	"collation",
+	"total_size_mb",
+	"index_count",
+];
+
+async function snapshotEnvironment(sql, dbConfig) {
+	return withSqlPool(sql, dbConfig, async (pool) => {
+		const rows = {};
+		for (const [field, query] of Object.entries(SNAPSHOT_QUERIES)) {
+			const result = await pool.request().query(query);
+			rows[field] = result.recordset[0];
+		}
+		return {
+			server: dbConfig.dbServer,
+			database: dbConfig.dbName,
+			server_version: {
+				version: rows.server_version?.version ?? null,
+				level: rows.server_version?.level ?? null,
+				edition: rows.server_version?.edition ?? null,
+			},
+			collation: rows.collation?.collation ?? null,
+			total_size_mb: rows.total_size_mb?.total_size_mb ?? 0,
+			index_count: rows.index_count?.index_count ?? 0,
+		};
+	});
+}
+
+// O host alvo vem da configuracao (TC_DB_TARGET_*), nunca do chamador.
+export async function compareEnvironments(cfg) {
+	const sql = await loadMssql();
+	const targetConfig = {
+		...cfg,
+		dbServer: cfg.dbTargetServer,
+		dbPort: cfg.dbTargetPort ?? cfg.dbPort,
+		dbName: cfg.dbTargetName,
+	};
+
+	async function capture(dbConfig) {
+		try {
+			return await snapshotEnvironment(sql, dbConfig);
+		} catch (error) {
+			return {
+				server: dbConfig.dbServer,
+				database: dbConfig.dbName,
+				connection_error: error.message,
+			};
+		}
 	}
+
+	const source = await capture(cfg);
+	const target = await capture(targetConfig);
+
+	const diffs = [];
+	if (!source.connection_error && !target.connection_error) {
+		for (const field of COMPARE_FIELDS) {
+			if (JSON.stringify(source[field]) !== JSON.stringify(target[field])) {
+				diffs.push({ field, source: source[field], target: target[field] });
+			}
+		}
+	}
+
+	return { source, target, diffs, compared_at: new Date().toISOString() };
+}
+
+const MIN_SQL_MAJOR = 13; // SQL Server 2016
+const DISK_WARNING_PERCENT = 80;
+const BACKUP_MAX_AGE_HOURS = 24;
+
+function sqlVersionMajor(version) {
+	const major = Number.parseInt(String(version).split(".")[0], 10);
+	return Number.isNaN(major) ? null : major;
+}
+
+// Cada check tolera falha isolada (DMV ausente, msdb sem permissao).
+export async function checkUpgradeReadiness(cfg) {
+	const sql = await loadMssql();
+	const checks = [];
+
+	async function runCheck(name, fn) {
+		try {
+			await fn();
+		} catch (error) {
+			checks.push({
+				name,
+				status: "warning",
+				message: `Nao foi possivel executar a verificacao: ${error.message}`,
+			});
+		}
+	}
+
+	await withSqlPool(sql, cfg, async (pool) => {
+		await runCheck("sql_version", async () => {
+			const result = await pool.request().query(`
+SELECT
+  CONVERT(nvarchar(128), SERVERPROPERTY('ProductLevel')) AS level,
+  CONVERT(nvarchar(128), SERVERPROPERTY('ProductVersion')) AS version`);
+			const row = result.recordset[0];
+			const major = sqlVersionMajor(row?.version);
+			checks.push({
+				name: "sql_version",
+				status:
+					major === null
+						? "warning"
+						: major >= MIN_SQL_MAJOR
+							? "ok"
+							: "warning",
+				current: row?.version ?? null,
+				minimum_required: `${MIN_SQL_MAJOR}.0 (SQL Server 2016)`,
+				message:
+					major === null
+						? "Nao foi possivel determinar a versao do SQL Server"
+						: major >= MIN_SQL_MAJOR
+							? "Versao do SQL Server compativel"
+							: `Versao ${row.version} abaixo do minimo esperado para o TC 2606`,
+			});
+		});
+
+		await runCheck("collation", async () => {
+			const result = await pool.request().query(`
+SELECT CONVERT(nvarchar(128), DATABASEPROPERTYEX(DB_NAME(), 'Collation')) AS collation`);
+			const collation = result.recordset[0]?.collation ?? null;
+			const binary = collation?.includes("_BIN") ?? false;
+			checks.push({
+				name: "collation",
+				status: binary ? "ok" : "warning",
+				current: collation,
+				recommended: "Latin1_General_BIN",
+				message: binary
+					? "Collation binaria (recomendada)"
+					: "Collation nao binaria pode causar inconsistencias de case no upgrade",
+			});
+		});
+
+		await runCheck("disk_usage", async () => {
+			const result = await pool.request().query(`
+SELECT
+  CAST(SUM(CASE WHEN type = 0 THEN FILEPROPERTY(name, 'SpaceUsed') * 8.0 / 1024 ELSE 0 END) AS decimal(18,2)) AS used_mb,
+  CAST(SUM(CASE WHEN type = 0 THEN size * 8.0 / 1024 ELSE 0 END) AS decimal(18,2)) AS allocated_mb
+FROM sys.database_files`);
+			const row = result.recordset[0];
+			const usedMb = row?.used_mb ?? 0;
+			const allocatedMb = row?.allocated_mb ?? 0;
+			const usagePercent = allocatedMb > 0 ? (usedMb / allocatedMb) * 100 : 0;
+			checks.push({
+				name: "disk_usage",
+				status: usagePercent < DISK_WARNING_PERCENT ? "ok" : "warning",
+				used_mb: usedMb,
+				allocated_mb: allocatedMb,
+				usage_percent: Number(usagePercent.toFixed(1)),
+				message:
+					usagePercent < DISK_WARNING_PERCENT
+						? "Uso de espaco dentro do limite"
+						: `Uso em ${usagePercent.toFixed(1)}% - avalie cleanup antes do upgrade`,
+			});
+		});
+
+		await runCheck("recovery_model", async () => {
+			const result = await pool.request().query(`
+SELECT recovery_model_desc FROM sys.databases WHERE database_id = DB_ID()`);
+			const recovery = result.recordset[0]?.recovery_model_desc ?? null;
+			checks.push({
+				name: "recovery_model",
+				status: recovery === "FULL" ? "ok" : "warning",
+				current: recovery,
+				recommended: "FULL",
+				message:
+					recovery === "FULL"
+						? "Recovery model FULL (suporta restore point-in-time)"
+						: "Recovery model diferente de FULL - sem restore point-in-time",
+			});
+		});
+
+		await runCheck("backup_recency", async () => {
+			const result = await pool.request().query(`
+SELECT TOP 1 backup_finish_date, type
+FROM msdb.dbo.backupset
+WHERE database_name = DB_NAME()
+ORDER BY backup_finish_date DESC`);
+			if (result.recordset.length === 0) {
+				checks.push({
+					name: "backup_recency",
+					status: "critical",
+					message: "Nenhum backup encontrado para a base",
+				});
+				return;
+			}
+			const lastBackup = new Date(result.recordset[0].backup_finish_date);
+			const ageHours = Math.round(
+				(Date.now() - lastBackup.getTime()) / 3_600_000,
+			);
+			checks.push({
+				name: "backup_recency",
+				status: ageHours < BACKUP_MAX_AGE_HOURS ? "ok" : "warning",
+				last_backup: lastBackup.toISOString(),
+				age_hours: ageHours,
+				message:
+					ageHours < BACKUP_MAX_AGE_HOURS
+						? "Backup recente existe"
+						: `Ultimo backup a ${ageHours}h atras`,
+			});
+		});
+
+		await runCheck("query_store", async () => {
+			const result = await pool.request().query(`
+SELECT actual_state_desc, desired_state_desc
+FROM sys.database_query_store_options`);
+			if (result.recordset.length > 0) {
+				const qs = result.recordset[0];
+				checks.push({
+					name: "query_store",
+					status: qs.actual_state_desc === "READ_WRITE" ? "ok" : "info",
+					current_state: qs.actual_state_desc,
+					desired_state: qs.desired_state_desc,
+					message:
+						qs.actual_state_desc === "READ_WRITE"
+							? "Query Store ativo e gravavel"
+							: `Query Store em ${qs.actual_state_desc}`,
+				});
+			} else {
+				checks.push({
+					name: "query_store",
+					status: "info",
+					message: "Query Store sem estado reportado para a base",
+				});
+			}
+		});
+	});
+
+	const overallStatus = checks.some((c) => c.status === "critical")
+		? "not_ready"
+		: checks.some((c) => c.status === "warning")
+			? "ready_with_warnings"
+			: "ready";
+
+	return {
+		overall_status: overallStatus,
+		check_count: checks.length,
+		checks,
+		timestamp: new Date().toISOString(),
+	};
 }

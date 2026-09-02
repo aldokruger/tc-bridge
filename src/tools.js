@@ -1,10 +1,15 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readBmideModel } from "./bmide-reader.js";
 import { makeBrowserTools } from "./browser-agent.js";
 import { soaCheckResult } from "./collectors/collector-sdk.js";
 import { isWithinAllowed } from "./config.js";
-import { runDbDiagnostic } from "./db-diagnostics.js";
+import {
+	checkUpgradeReadiness,
+	compareEnvironments,
+	runDbDiagnostic,
+} from "./db-diagnostics.js";
 import { runDiagnostic } from "./diagnostics.js";
 import { SOA_ACTION_BUDGETS, validateSoaAction } from "./soa-actions.js";
 import { makeTeamcenterLogTool } from "./teamcenter-logs.js";
@@ -117,6 +122,16 @@ export function makeTools(cfg, { metrics } = {}) {
 	}
 
 	const tools = {
+		bmide_model: {
+			description:
+				"Le o modelo BMIDE (default.xml) do Teamcenter: business objects, properties, LOVs e naming rules com contagens (respeita a whitelist de leitura)",
+			input: { tc_data_path: "string" },
+			async run({ tc_data_path }) {
+				await assertReadable(tc_data_path);
+				return readBmideModel(tc_data_path);
+			},
+		},
+
 		list_dir: {
 			description: "Lista o conteudo de um diretorio (nao recursivo)",
 			input: { remote_path: "string" },
@@ -457,6 +472,25 @@ export function makeTools(cfg, { metrics } = {}) {
 				return runDbDiagnostic(request, cfg);
 			},
 		};
+		tools.upgrade_readiness = {
+			description:
+				"Verifica pre-requisitos MSSQL para upgrade Teamcenter (somente leitura; cada check reporta ok/warning/critical/info)",
+			input: {},
+			async run() {
+				return checkUpgradeReadiness(cfg);
+			},
+		};
+	}
+
+	if (cfg.allowDbCompare) {
+		tools.compare_environments = {
+			description:
+				"Compara o ambiente Teamcenter configurado com o alvo declarado em TC_DB_TARGET_SERVER/TC_DB_TARGET_NAME (mesma conta SQL de diagnostico; somente leitura)",
+			input: {},
+			async run() {
+				return compareEnvironments(cfg);
+			},
+		};
 	}
 
 	if (cfg.allowTeamcenterRead) {
@@ -612,6 +646,8 @@ export function makeTools(cfg, { metrics } = {}) {
 		addHandler("browser.performance", "browser_performance");
 		addHandler("diagnostic.run", "run_diagnostic");
 		addHandler("database.diagnostic", "run_db_diagnostic");
+		addHandler("database.upgrade_readiness", "upgrade_readiness");
+		addHandler("database.compare", "compare_environments");
 		if (cfg.allowTeamcenterRead) {
 			for (const action of enabledSoaActions(cfg)) {
 				addHandler(action, "tc_soa_read");
@@ -642,6 +678,8 @@ export function makeTools(cfg, { metrics } = {}) {
 				browserPerformance: "browser_performance",
 				diagnostic: "run_diagnostic",
 				database: "run_db_diagnostic",
+				databaseUpgrade: "upgrade_readiness",
+				databaseCompare: "compare_environments",
 				teamcenter: "tc_soa_read",
 				teamcenterLogs: "teamcenter_log_inspect",
 			})) {
