@@ -214,6 +214,34 @@ Esta é uma base de homologação com token de serviço. Produção ainda requer
 OIDC/MFA, autorização por usuário, registro/persistência de agentes e auditoria
 central.
 
+### Console administrativo do broker (HTTPS /admin)
+
+O mesmo listener HTTPS da API MCP (padrão `8444`) pode servir um console de
+operação em `/admin`, habilitado somente quando `TC_BROKER_ADMIN_TOKEN` está
+definido — sem o token não existem rotas `/admin` (negação por padrão). A
+autenticação do console é própria (sessão criada com `TC_BROKER_ADMIN_TOKEN`,
+com validação de Origin) e não reutiliza `TC_TOKEN` nem `TC_BROKER_API_TOKEN`.
+
+O console apresenta, somente leitura sobre agentes e configuração remota:
+dashboard de conectividade, agentes conectados, a allowlist efetiva
+(`TC_BROKER_ALLOWED_ACTIONS`), TTL/subject das capabilities, tarefas e
+auditoria sanitizadas, e execução de health checks já allowlisted.
+
+Uma aba de chat LLM permite operar o broker por linguagem natural. A chave do
+provedor LLM é informada por requisição na própria interface, nunca é
+persistida e nunca atravessa o canal broker–agente. O broker orquestra o turno
+e qualquer chamada de ferramenta despacha somente actions presentes em
+`TC_BROKER_ALLOWED_ACTIONS`; action fora da allowlist é recusada com `403`
+antes de qualquer despacho. A resposta chega por SSE (com heartbeat) e cada
+turno grava eventos de auditoria `chat.start`/`chat.done`/`chat.failed`/
+`chat.aborted`. O corpo de `/v1/chat` aceita históricos de até 10 MB
+(coerente com o schema de 100 mensagens); as demais rotas mantêm o limite de
+64 KB.
+
+O console usa o mesmo certificado da API MCP
+(`TC_BROKER_API_TLS_KEY`/`TC_BROKER_API_TLS_CERTIFICATE`); em homologação com
+CA privada, o navegador exige aceitar esse certificado para abrir `/admin`.
+
 ### Diagnóstico do navegador AWC
 
 O agente de navegador é opcional e fica desabilitado por padrão. Ele só aceita
