@@ -73,6 +73,20 @@ await new Promise((resolve, reject) => {
 });
 console.log(`[tc-broker] MCP cloud escutando em https://0.0.0.0:${apiPort}/mcp`);
 function shutdown() {
+	// server.close() espera conexões abertas terminarem; sem este prazo o
+	// processo nunca sai e o systemd aplica SIGKILL após o TimeoutStopSec.
+	const forceExit = setTimeout(() => process.exit(0), 5_000);
+	forceExit.unref();
+	// Sem o terminate, broker.server.close() espera os websockets upgradeados
+	// dos agentes e o shutdown nunca resolve.
+	for (const connection of broker.agents.values()) {
+		try {
+			connection.websocket.terminate();
+		} catch {
+			// websocket já encerrado
+		}
+	}
+	apiServer.closeAllConnections?.();
 	apiServer.close(() => broker.close().finally(() => process.exit(0)));
 }
 process.on("SIGINT", shutdown);
