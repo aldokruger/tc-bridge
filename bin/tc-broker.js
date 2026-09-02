@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises";
 import https from "node:https";
+import express from "express";
+import { createAdminConsoleApp } from "../src/zero-trust/admin-console.js";
 import { AgentBroker } from "../src/zero-trust/broker.js";
 import { createBrokerMcpApp } from "../src/zero-trust/cloud-mcp.js";
 
@@ -10,13 +12,16 @@ const certificatePath = process.env.TC_BROKER_TLS_CERTIFICATE;
 const certificateAuthorityPath = process.env.TC_BROKER_CLIENT_CA;
 const apiPort = Number(process.env.TC_BROKER_API_PORT || "8444");
 const apiToken = process.env.TC_BROKER_API_TOKEN;
+const adminToken = process.env.TC_BROKER_ADMIN_TOKEN;
 const apiKeyPath = process.env.TC_BROKER_API_TLS_KEY || keyPath;
 const apiCertificatePath =
 	process.env.TC_BROKER_API_TLS_CERTIFICATE || certificatePath;
 const capabilityPrivateKeyPath = process.env.TC_CAPABILITY_PRIVATE_KEY;
 const capabilityIssuer = process.env.TC_CAPABILITY_ISSUER;
 const allowedActions = process.env.TC_BROKER_ALLOWED_ACTIONS;
-const capabilityTtlSeconds = Number(process.env.TC_CAPABILITY_TTL_SECONDS || "60");
+const capabilityTtlSeconds = Number(
+	process.env.TC_CAPABILITY_TTL_SECONDS || "60",
+);
 for (const [name, value] of Object.entries({
 	TC_BROKER_TLS_KEY: keyPath,
 	TC_BROKER_TLS_CERTIFICATE: certificatePath,
@@ -36,7 +41,9 @@ if (
 	capabilityTtlSeconds < 1 ||
 	capabilityTtlSeconds > 300
 ) {
-	throw new Error("TC_CAPABILITY_TTL_SECONDS deve ser um inteiro entre 1 e 300");
+	throw new Error(
+		"TC_CAPABILITY_TTL_SECONDS deve ser um inteiro entre 1 e 300",
+	);
 }
 const [key, cert, ca, privateKey, apiKey, apiCertificate] = await Promise.all([
 	fs.readFile(keyPath),
@@ -46,24 +53,47 @@ const [key, cert, ca, privateKey, apiKey, apiCertificate] = await Promise.all([
 	fs.readFile(apiKeyPath),
 	fs.readFile(apiCertificatePath),
 ]);
+const { version } = JSON.parse(
+	await fs.readFile(new URL("../package.json", import.meta.url), "utf8"),
+);
 const broker = new AgentBroker({ tls: { key, cert, ca }, capabilityIssuer });
 await broker.listen(port);
 console.log(`[tc-broker] escutando com mTLS na porta ${port}`);
-const app = createBrokerMcpApp({
+const actionSet = new Set(
+	allowedActions
+		.split(/[;,]/)
+		.map((value) => value.trim())
+		.filter(Boolean),
+);
+const mcpApp = createBrokerMcpApp({
 	broker,
 	token: apiToken,
 	issuer: capabilityIssuer,
 	privateKey,
-	allowedActions: new Set(
-		allowedActions
-			.split(/[;,]/)
-			.map((value) => value.trim())
-			.filter(Boolean),
-	),
+	allowedActions: actionSet,
 	subject: process.env.TC_BROKER_SUBJECT || "codex-service",
 	capabilityTtlSeconds,
 });
-const apiServer = https.createServer({ key: apiKey, cert: apiCertificate }, app);
+// Console admin deny-by-default: sem TC_BROKER_ADMIN_TOKEN nao ha rotas /admin.
+const adminApp = adminToken
+	? createAdminConsoleApp({
+			adminToken,
+			broker,
+			issuer: capabilityIssuer,
+			privateKey,
+			allowedActions: actionSet,
+			subject: process.env.TC_BROKER_SUBJECT || "admin-console",
+			ttlSeconds: capabilityTtlSeconds,
+			version,
+		})
+	: null;
+const apiHandler = adminApp
+	? express().use("/admin", adminApp).use(mcpApp)
+	: mcpApp;
+const apiServer = https.createServer(
+	{ key: apiKey, cert: apiCertificate },
+	apiHandler,
+);
 await new Promise((resolve, reject) => {
 	apiServer.once("error", reject);
 	apiServer.listen(apiPort, "0.0.0.0", () => {
@@ -71,7 +101,14 @@ await new Promise((resolve, reject) => {
 		resolve();
 	});
 });
-console.log(`[tc-broker] MCP cloud escutando em https://0.0.0.0:${apiPort}/mcp`);
+console.log(
+	`[tc-broker] MCP cloud escutando em https://0.0.0.0:${apiPort}/mcp`,
+);
+if (adminApp) {
+	console.log(
+		`[tc-broker] console admin escutando em https://0.0.0.0:${apiPort}/admin`,
+	);
+}
 function shutdown() {
 	// server.close() espera conexões abertas terminarem; sem este prazo o
 	// processo nunca sai e o systemd aplica SIGKILL após o TimeoutStopSec.

@@ -10,12 +10,25 @@ function parseMessage(payload) {
 	}
 }
 
+// Decodifica somente o payload (claims) da capability JWS para metadados de
+// auditoria/UI. Nao ha verificacao aqui: o broker e o emissor e a validacao
+// criptografica acontece no agente.
+function decodeCapabilityClaims(token) {
+	try {
+		const payload = token.split(".")[1];
+		return JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+	} catch {
+		return null;
+	}
+}
+
 export class AgentBroker {
 	constructor({
 		tls,
 		capabilityIssuer,
 		requireCertificateCnMatch = true,
 		taskTimeoutMs = 60_000,
+		taskHistoryLimit = 500,
 	}) {
 		if (typeof capabilityIssuer !== "string" || !capabilityIssuer) {
 			throw new Error("Emissor de capability obrigatorio para o broker");
@@ -25,6 +38,11 @@ export class AgentBroker {
 		this.capabilityIssuer = capabilityIssuer;
 		this.requireCertificateCnMatch = requireCertificateCnMatch;
 		this.taskTimeoutMs = taskTimeoutMs;
+		// Historico em memoria dos metadados minimos de tarefa para a UI
+		// administrativa. SIMPLIFICATION: nao persiste em disco; evolucao para
+		// auditoria central fica para as Fases 5/6 do plano de admin UI.
+		this.taskHistoryLimit = taskHistoryLimit;
+		this.taskHistory = [];
 		this.server = https.createServer({
 			...tls,
 			requestCert: true,
@@ -110,9 +128,11 @@ export class AgentBroker {
 		clearTimeout(pending.timeout);
 		this.pendingTasks.delete(message.task_id);
 		if (message.status === "completed") {
+			this.#finishTask(message.task_id, "completed");
 			pending.resolve(message.result);
 			return;
 		}
+		this.#finishTask(message.task_id, "failed", message.error);
 		pending.reject(new Error(message.error || "A tarefa falhou no agente"));
 	}
 
@@ -121,6 +141,48 @@ export class AgentBroker {
 			agent_id: agentId,
 			connected_at: connection.connectedAt,
 		}));
+	}
+
+	pendingFor(agentId) {
+		const pending = [];
+		for (const [taskId, entry] of this.pendingTasks) {
+			if (entry.agentId === agentId) {
+				pending.push({ task_id: taskId });
+			}
+		}
+		return pending;
+	}
+
+	listTasks() {
+		return this.taskHistory.map((entry) => ({ ...entry }));
+	}
+
+	#finishTask(taskId, status, error = null) {
+		const entry = this.taskHistory.find((task) => task.task_id === taskId);
+		if (!entry) return;
+		entry.status = status;
+		entry.finished_at = new Date().toISOString();
+		entry.duration_ms =
+			Date.parse(entry.finished_at) - Date.parse(entry.started_at);
+		entry.error = error ? String(error).slice(0, 300) : null;
+	}
+
+	#recordTask(agentId, task, taskId) {
+		const claims = decodeCapabilityClaims(task.capability);
+		this.taskHistory.unshift({
+			task_id: taskId,
+			agent_id: agentId,
+			action: claims?.action ?? null,
+			subject: claims?.sub ?? null,
+			status: "pending",
+			started_at: new Date().toISOString(),
+			finished_at: null,
+			duration_ms: null,
+			error: null,
+		});
+		if (this.taskHistory.length > this.taskHistoryLimit) {
+			this.taskHistory.length = this.taskHistoryLimit;
+		}
 	}
 
 	dispatch(agentId, task) {
@@ -135,9 +197,15 @@ export class AgentBroker {
 			throw new Error("Tarefa sem capability ou task_json");
 		}
 		const taskId = crypto.randomUUID();
+		this.#recordTask(agentId, task, taskId);
 		return new Promise((resolve, reject) => {
 			const timeout = setTimeout(() => {
 				this.pendingTasks.delete(taskId);
+				this.#finishTask(
+					taskId,
+					"timeout",
+					`Tempo esgotado aguardando agente: ${agentId}`,
+				);
 				reject(new Error(`Tempo esgotado aguardando agente: ${agentId}`));
 			}, this.taskTimeoutMs);
 			this.pendingTasks.set(taskId, { agentId, resolve, reject, timeout });
@@ -147,6 +215,7 @@ export class AgentBroker {
 					if (!error) return;
 					clearTimeout(timeout);
 					this.pendingTasks.delete(taskId);
+					this.#finishTask(taskId, "error", error.message);
 					reject(error);
 				},
 			);
@@ -164,8 +233,9 @@ export class AgentBroker {
 	}
 
 	close() {
-		for (const pending of this.pendingTasks.values()) {
+		for (const [taskId, pending] of this.pendingTasks) {
 			clearTimeout(pending.timeout);
+			this.#finishTask(taskId, "cancelled", "Broker encerrado");
 			pending.reject(new Error("Broker encerrado"));
 		}
 		this.pendingTasks.clear();

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>tc-broker · Console admin</title>
+	<link rel="stylesheet" href="/admin/styles.css" />
+</head>
+<body>
+	<header class="topbar">
+		<h1>tc-broker · Console admin</h1>
+		<div class="topbar-actions">
+			<span id="role-chip" class="chip hidden"></span>
+			<button id="btn-logout" class="hidden" type="button">Sair</button>
+		</div>
+	</header>
+
+	<section id="view-login" class="panel hidden">
+		<h2>Autenticacao</h2>
+		<form id="form-login">
+			<label for="admin-token">Token administrativo</label>
+			<input id="admin-token" type="password" autocomplete="current-password" required />
+			<button type="submit">Entrar</button>
+			<p id="login-error" class="error hidden"></p>
+		</form>
+	</section>
+
+	<main id="view-dashboard" class="hidden">
+		<nav class="tabs">
+			<button class="tab active" data-tab="overview" type="button">Visao geral</button>
+			<button class="tab" data-tab="agents" type="button">Agentes</button>
+			<button class="tab" data-tab="tasks" type="button">Tarefas</button>
+			<button class="tab" data-tab="audit" type="button">Auditoria</button>
+			<button class="tab" data-tab="config" type="button">Configuracao</button>
+		</nav>
+
+		<section id="tab-overview" class="tabpanel">
+			<h2>Visao geral</h2>
+			<div id="overview-cards" class="cards"></div>
+		</section>
+
+		<section id="tab-agents" class="tabpanel hidden">
+			<h2>Agentes conectados</h2>
+			<div id="agents-body"></div>
+		</section>
+
+		<section id="tab-tasks" class="tabpanel hidden">
+			<h2>Tarefas recentes</h2>
+			<div id="tasks-body"></div>
+		</section>
+
+		<section id="tab-audit" class="tabpanel hidden">
+			<h2>Auditoria do console</h2>
+			<div id="audit-body"></div>
+		</section>
+
+		<section id="tab-config" class="tabpanel hidden">
+			<h2>Configuracao efetiva (somente leitura)</h2>
+			<div id="config-body"></div>
+		</section>
+	</main>
+
+	<div id="agent-detail" class="modal hidden">
+		<div class="modal-content">
+			<button id="modal-close" class="modal-close" type="button" aria-label="Fechar">&times;</button>
+			<div id="modal-body"></div>
+		</div>
+	</div>
+
+	<script src="/admin/app.js" type="module"></script>
+</body>
+</html>
