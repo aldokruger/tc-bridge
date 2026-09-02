@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import express from "express";
 import { z } from "zod";
 import { createCapabilityTask } from "./cloud-mcp.js";
+import { runChatTurn } from "./llm-chat.js";
 
 const ADMIN_UI_DIR = fileURLToPath(new URL("./admin-ui", import.meta.url));
 
@@ -38,6 +39,21 @@ const checkSchema = z.object({
 	parameters: z.record(z.string(), z.unknown()).optional(),
 });
 
+const chatMessageSchema = z.object({
+	role: z.enum(["user", "assistant"]),
+	content: z.string().max(100_000),
+});
+
+const chatSchema = z.object({
+	agent_id: z.string().min(1),
+	llm: z.object({
+		base_url: z.string().url(),
+		model: z.string().min(1),
+		api_key: z.string().min(1),
+	}),
+	messages: z.array(chatMessageSchema).max(100),
+});
+
 export function createAdminConsoleApp({
 	adminToken,
 	broker,
@@ -60,6 +76,12 @@ export function createAdminConsoleApp({
 	const loginFailures = new Map();
 
 	app.disable("x-powered-by");
+	// O historico de /v1/chat pode passar de 64kb (schema: ate 100 msgs de
+	// 100k). Parser proprio antes do json global; o body-parser ignora corpos
+	// ja parseados (req._body), entao as demais rotas mantem o limite menor.
+	app.post("/v1/chat", express.json({ limit: "10mb" }), (_req, _res, next) =>
+		next(),
+	);
 	app.use(express.json({ limit: "64kb" }));
 	app.use((req, res, next) => {
 		res.setHeader("X-Content-Type-Options", "nosniff");
@@ -167,6 +189,7 @@ export function createAdminConsoleApp({
 			features: {
 				config_edit: false,
 				checks: true,
+				chat: true,
 				restart: false,
 				oidc: false,
 			},
@@ -258,6 +281,87 @@ export function createAdminConsoleApp({
 				error: error.message,
 			});
 			return res.status(502).json({ error: error.message });
+		}
+	});
+
+	// Chat com LLM: o broker orquestra a conversa e o dispatch de tools no
+	// agente. Resposta em SSE. A api_key da LLM chega no body (HTTPS), fica
+	// somente na memoria durante o request e nao vai a disco nem a logs.
+	app.post("/v1/chat", requireSession, async (req, res) => {
+		const parsed = chatSchema.safeParse(req.body);
+		if (!parsed.success) {
+			return res.status(400).json({
+				error:
+					"body deve ser { agent_id, llm: { base_url, model, api_key }, messages: [{role, content}] }",
+			});
+		}
+		const { agent_id: agentId, llm, messages } = parsed.data;
+		emitAudit({
+			event: "chat.start",
+			agent_id: agentId,
+			llm_model: llm.model,
+			messages: messages.length,
+		});
+		res.writeHead(200, {
+			"Content-Type": "text/event-stream",
+			"Cache-Control": "no-store",
+			Connection: "keep-alive",
+			"X-Accel-Buffering": "no",
+		});
+		const sendEvent = (event) => {
+			if (res.destroyed || res.writableEnded) return;
+			res.write(`data: ${JSON.stringify(event)}\n\n`);
+		};
+		const abortController = new AbortController();
+		res.on("close", () => abortController.abort());
+		// Heartbeat: turnos longos deixam o SSE ocioso e NATs derrubam a
+		// conexao ("Failed to fetch"). Comentario SSE e ignorado pelo parser.
+		const heartbeat = setInterval(() => {
+			if (res.destroyed || res.writableEnded) return;
+			res.write(": keep-alive\n\n");
+		}, 15_000);
+		try {
+			await runChatTurn({
+				broker,
+				agentId,
+				allowedActions,
+				issuer,
+				privateKey,
+				subject,
+				ttlSeconds,
+				llm,
+				messages,
+				signal: abortController.signal,
+				onEvent: sendEvent,
+			});
+			emitAudit({
+				event: "chat.done",
+				agent_id: agentId,
+				llm_model: llm.model,
+			});
+			sendEvent({ type: "end" });
+			res.end();
+		} catch (error) {
+			if (abortController.signal.aborted) {
+				emitAudit({
+					event: "chat.aborted",
+					agent_id: agentId,
+					llm_model: llm.model,
+				});
+				return;
+			}
+			emitAudit({
+				event: "chat.failed",
+				agent_id: agentId,
+				llm_model: llm.model,
+				error: error.message,
+			});
+			if (!res.destroyed && !res.writableEnded) {
+				sendEvent({ type: "error", error: error.message });
+				res.end();
+			}
+		} finally {
+			clearInterval(heartbeat);
 		}
 	});
 

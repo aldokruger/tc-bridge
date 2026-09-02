@@ -29,6 +29,7 @@
 		<nav class="tabs">
 			<button class="tab active" data-tab="overview" type="button">Visao geral</button>
 			<button class="tab" data-tab="agents" type="button">Agentes</button>
+			<button class="tab" data-tab="chat" type="button">Chat</button>
 			<button class="tab" data-tab="tasks" type="button">Tarefas</button>
 			<button class="tab" data-tab="audit" type="button">Auditoria</button>
 			<button class="tab" data-tab="config" type="button">Configuracao</button>
@@ -42,6 +43,27 @@
 		<section id="tab-agents" class="tabpanel hidden">
 			<h2>Agentes conectados</h2>
 			<div id="agents-body"></div>
+		</section>
+
+		<section id="tab-chat" class="tabpanel hidden">
+			<h2>Chat com agente (LLM)</h2>
+			<form id="chat-settings" class="chat-settings">
+				<label for="chat-agent">Agente</label>
+				<select id="chat-agent"></select>
+				<label for="chat-base-url">Base URL (OpenAI-compatible)</label>
+				<input id="chat-base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" />
+				<label for="chat-model">Modelo</label>
+				<input id="chat-model" type="text" placeholder="gpt-4o-mini" autocomplete="off" />
+				<label for="chat-api-key">API key (nao e persistida; enviada ao broker a cada mensagem)</label>
+				<input id="chat-api-key" type="password" autocomplete="off" />
+			</form>
+			<div id="chat-history" class="chat-history" aria-live="polite"></div>
+			<div id="chat-suggestions" class="chat-suggestions hidden"></div>
+			<form id="chat-form" class="chat-form">
+				<input id="chat-input" type="text" placeholder="Ex.: liste os logs do Teamcenter e me mostre o final do syslog" autocomplete="off" />
+				<button id="btn-chat-send" type="submit">Enviar</button>
+			</form>
+			<p id="chat-error" class="error hidden"></p>
 		</section>
 
 		<section id="tab-tasks" class="tabpanel hidden">

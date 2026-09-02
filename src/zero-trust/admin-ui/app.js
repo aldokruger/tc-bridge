@@ -8,9 +8,105 @@ const state = {
 	agents: [],
 	tasks: [],
 	audit: [],
+	chat: {
+		messages: [],
+		busy: false,
+		llmConfig: {
+			base_url:
+				localStorage.getItem("tc_chat_base_url") || "https://api.openai.com/v1",
+			model: localStorage.getItem("tc_chat_model") || "gpt-4o-mini",
+			api_key: "",
+		},
+	},
 };
 
 const API = "/admin/v1";
+
+// Sugestoes de execucao direta via /agents/:id/checks (sem LLM). Ficam fora
+// acoes que dependem de contexto (page_id, service_name, relative_path/pattern).
+const CHAT_SUGGESTION_CATALOG = {
+	"browser.status": [
+		{
+			parameters: {},
+			label: "browser.status",
+			description: "Verifica se o Chrome de depuracao do agente esta ativo",
+		},
+	],
+	"browser.pages": [
+		{
+			parameters: {},
+			label: "browser.pages",
+			description: "Lista as paginas Chrome depuraveis abertas no agente",
+		},
+	],
+	"database.diagnostic": [
+		{
+			parameters: { check: "database_files" },
+			label: "database.diagnostic: database_files",
+			description: "Mostra o tamanho e uso dos arquivos de dados e log da base",
+		},
+		{
+			parameters: { check: "waits" },
+			label: "database.diagnostic: waits",
+			description:
+				"Mostra as principais esperas acumuladas da instancia SQL Server",
+		},
+		{
+			parameters: { check: "active_requests" },
+			label: "database.diagnostic: active_requests",
+			description: "Mostra as requisicoes SQL ativas mais demoradas",
+		},
+		{
+			parameters: { check: "expensive_queries" },
+			label: "database.diagnostic: expensive_queries",
+			description: "Mostra as consultas agregadas mais custosas do SQL Server",
+		},
+		{
+			parameters: { check: "index_health" },
+			label: "database.diagnostic: index_health",
+			description: "Mostra indices grandes com maior fragmentacao",
+		},
+	],
+	"teamcenter.logs.read": [
+		{
+			parameters: { operation: "list" },
+			label: "teamcenter.logs.read: list",
+			description: "Lista os arquivos de log Teamcenter disponiveis no agente",
+		},
+	],
+};
+
+function buildChatSuggestions() {
+	const actions = state.config?.allowed_actions || [];
+	const suggestions = [];
+	for (const action of [...actions].sort()) {
+		if (action === "teamcenter.read") continue; // umbrella; agente usa granulares
+		for (const entry of CHAT_SUGGESTION_CATALOG[action] || []) {
+			suggestions.push({ action, ...entry });
+		}
+	}
+	return suggestions;
+}
+
+function renderChatSuggestions() {
+	const container = $("#chat-suggestions");
+	const suggestions = buildChatSuggestions();
+	state.chat.suggestions = suggestions;
+	if (!suggestions.length) {
+		container.classList.add("hidden");
+		container.innerHTML = "";
+		return;
+	}
+	container.classList.remove("hidden");
+	container.innerHTML = suggestions
+		.map(
+			(suggestion, index) =>
+				`<button type="button" class="chat-suggestion" data-index="${index}" title="${escapeHtml(
+					suggestion.description,
+				)}">${escapeHtml(suggestion.label)}</button>`,
+		)
+		.join("");
+}
 
 async function api(path, options = {}) {
 	const response = await fetch(`${API}${path}`, {
@@ -113,6 +209,7 @@ async function refreshAll() {
 	renderTasks();
 	renderAudit();
 	renderConfig();
+	renderChatSuggestions();
 }
 
 async function loadHealth() {
@@ -221,6 +318,8 @@ async function openAgentDetail(agentId) {
 		<div class="check-run">
 			<label for="check-action">Executar health/preflight (allowlisted)</label>
 			<select id="check-action">${actions}</select>
+			<label for="check-params">Parametros (JSON, opcional)</label>
+			<textarea id="check-params" rows="2" placeholder='{"operation":"list"}'></textarea>
 			<button id="btn-run-check" class="primary">Executar check</button>
 			<pre id="check-result" class="result hidden"></pre>
 		</div>`;
@@ -229,13 +328,23 @@ async function openAgentDetail(agentId) {
 		const action = $("#check-action").value;
 		const pre = $("#check-result");
 		pre.classList.remove("hidden");
+		const paramsText = $("#check-params").value.trim();
+		let parameters = {};
+		if (paramsText) {
+			try {
+				parameters = JSON.parse(paramsText);
+			} catch (error) {
+				pre.textContent = `ERRO: parametros invalidos (JSON): ${error.message}`;
+				return;
+			}
+		}
 		pre.textContent = "Executando...";
 		try {
 			const result = await api(
 				`/agents/${encodeURIComponent(agentId)}/checks`,
 				{
 					method: "POST",
-					body: JSON.stringify({ action, parameters: {} }),
+					body: JSON.stringify({ action, parameters }),
 				},
 			);
 			pre.textContent = JSON.stringify(result.result ?? result, null, 2);
@@ -335,6 +444,471 @@ function renderConfig() {
 		</ul>`;
 }
 
+function chatAgentOptions() {
+	const agents = state.agents;
+	const select = $("#chat-agent");
+	select.innerHTML = agents.length
+		? agents
+				.map(
+					(agent) =>
+						`<option value="${escapeHtml(agent.agent_id)}">${escapeHtml(agent.agent_id)}</option>`,
+				)
+				.join("")
+		: '<option value="">(nenhum agente conectado)</option>';
+	const previous = localStorage.getItem("tc_chat_agent");
+	if (previous && agents.some((agent) => agent.agent_id === previous)) {
+		select.value = previous;
+	}
+}
+
+function syncChatSettings() {
+	$("#chat-base-url").value = state.chat.llmConfig.base_url;
+	$("#chat-model").value = state.chat.llmConfig.model;
+	$("#chat-api-key").value = state.chat.llmConfig.api_key;
+	renderChatSuggestions();
+}
+
+function renderChatMessage(message) {
+	if (message.role === "user") {
+		return `<div class="chat-msg user"><div class="bubble">${escapeHtml(message.content)}</div></div>`;
+	}
+	const toolBlocks = (message.toolEvents || [])
+		.map((event) => {
+			const status = event.ok === null ? "..." : event.ok ? "ok" : "erro";
+			return `<details class="chat-tool ${event.ok === null ? "pending" : event.ok ? "ok" : "error"}">
+				<summary>${escapeHtml(event.name)} ${status}</summary>
+				${
+					event.ok === false
+						? `<p class="muted">${escapeHtml(event.error ?? "")}</p>`
+						: ""
+				}
+			</details>`;
+		})
+		.join("");
+	const reportHtml = buildDirectReport(message);
+	return `<div class="chat-msg assistant"><div class="bubble">
+		${toolBlocks}
+		${
+			reportHtml
+				? reportHtml
+				: message.content
+					? `<div class="chat-content">${escapeHtml(message.content)}</div>`
+					: message.toolEvents?.length
+						? ""
+						: '<span class="muted">...</span>'
+		}
+		${message.streaming ? '<span class="cursor"></span>' : ""}
+	</div></div>`;
+}
+
+function renderChatHistory() {
+	const history = $("#chat-history");
+	history.innerHTML = state.chat.messages.map(renderChatMessage).join("");
+	history.scrollTop = history.scrollHeight;
+}
+
+function pushChatMessage(message) {
+	state.chat.messages.push(message);
+	renderChatHistory();
+}
+
+function updateChatMessage(index, patch) {
+	Object.assign(state.chat.messages[index], patch);
+	renderChatHistory();
+}
+
+function resetChatError() {
+	$("#chat-error").classList.add("hidden");
+	$("#chat-error").textContent = "";
+}
+
+function showChatError(message) {
+	const error = $("#chat-error");
+	error.textContent = message;
+	error.classList.remove("hidden");
+}
+
+async function sendChatMessage() {
+	resetChatError();
+	const agentId = $("#chat-agent").value;
+	if (!agentId) return showChatError("Nenhum agente conectado para conversar.");
+	const content = $("#chat-input").value.trim();
+	if (!content) return;
+	const llm = { ...state.chat.llmConfig };
+	llm.base_url = $("#chat-base-url").value.trim();
+	llm.model = $("#chat-model").value.trim();
+	llm.api_key = $("#chat-api-key").value.trim();
+	if (!llm.base_url || !llm.model) {
+		return showChatError("Preencha Base URL e Modelo da LLM.");
+	}
+	if (!llm.api_key) return showChatError("Informe a API key da LLM.");
+	state.chat.llmConfig = llm;
+	localStorage.setItem("tc_chat_base_url", llm.base_url);
+	localStorage.setItem("tc_chat_model", llm.model);
+	localStorage.setItem("tc_chat_agent", agentId);
+	state.chat.busy = true;
+	$("#btn-chat-send").disabled = true;
+	$("#chat-input").disabled = true;
+	pushChatMessage({ role: "user", content });
+	const assistantIndex = state.chat.messages.length;
+	pushChatMessage({
+		role: "assistant",
+		content: "",
+		toolEvents: [],
+		streaming: true,
+	});
+	$("#chat-input").value = "";
+	const history = state.chat.messages
+		.filter(
+			(message) =>
+				!message.direct && (message.role === "user" || message.content),
+		)
+		.map((message) => ({ role: message.role, content: message.content || "" }));
+	try {
+		const response = await fetch(`${API}/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			body: JSON.stringify({ agent_id: agentId, llm, messages: history }),
+		});
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}));
+			throw new Error(body.error || `HTTP ${response.status}`);
+		}
+		if (!response.body) throw new Error("resposta sem corpo");
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = "";
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			const events = buffer.split("\n\n");
+			buffer = events.pop() ?? "";
+			for (const rawEvent of events) {
+				const line = rawEvent.trim();
+				if (!line.startsWith("data:")) continue;
+				let event;
+				try {
+					event = JSON.parse(line.slice(5).trim());
+				} catch {
+					continue;
+				}
+				if (event.type === "token") {
+					updateChatMessage(assistantIndex, {
+						content: state.chat.messages[assistantIndex].content + event.text,
+					});
+				} else if (event.type === "tool_call") {
+					const toolEvents =
+						state.chat.messages[assistantIndex].toolEvents || [];
+					toolEvents.push({ name: event.name, ok: null });
+					updateChatMessage(assistantIndex, { toolEvents });
+				} else if (event.type === "tool_result") {
+					const toolEvents =
+						state.chat.messages[assistantIndex].toolEvents || [];
+					const last = toolEvents.find(
+						(tool) => tool.name === event.name && tool.ok === null,
+					);
+					if (last) {
+						last.ok = event.ok;
+						last.error = event.error;
+					}
+					updateChatMessage(assistantIndex, { toolEvents });
+				} else if (event.type === "error") {
+					throw new Error(event.error || "erro no chat");
+				} else if (event.type === "end") {
+					break;
+				}
+			}
+		}
+	} catch (error) {
+		state.chat.messages[assistantIndex].streaming = false;
+		const failedFetch = /Failed to fetch|NetworkError|network error/i.test(
+			error.message || "",
+		);
+		showChatError(
+			failedFetch
+				? "Falha no chat: a conexao com o broker caiu durante a resposta. Se a resposta demorou, o servidor pode ter derrubado o stream ocioso; tente novamente."
+				: `Falha no chat: ${error.message}`,
+		);
+	} finally {
+		state.chat.messages[assistantIndex].streaming = false;
+		renderChatHistory();
+		state.chat.busy = false;
+		$("#btn-chat-send").disabled = false;
+		$("#chat-input").disabled = false;
+		$("#chat-input").focus();
+	}
+}
+
+const DIRECT_RESULT_MAX_CHARS = 20_000;
+
+// Dados do agente sao nao confiaveis: qualquer valor e escapado na tabela.
+const DIRECT_COLUMN_LABELS = {
+	schema_name: "Schema",
+	table_name: "Tabela",
+	index_name: "Índice",
+	index_type_desc: "Tipo de índice",
+	page_count: "Páginas",
+	avg_fragmentation_percent: "Fragmentação (%)",
+	name: "Nome",
+	type_desc: "Tipo",
+	size_mb: "Tamanho (MB)",
+	used_mb: "Usado (MB)",
+	growth_value: "Crescimento",
+	growth_unit: "Unidade",
+	max_size_mb: "Máximo (MB)",
+	wait_type: "Tipo de espera",
+	waiting_tasks_count: "Tarefas em espera",
+	wait_time_ms: "Espera (ms)",
+	signal_wait_time_ms: "Espera de sinal (ms)",
+	resource_wait_time_ms: "Espera de recurso (ms)",
+	session_id: "Sessão",
+	login_name: "Login",
+	host_name: "Host",
+	status: "Status",
+	command: "Comando",
+	wait_time: "Espera (ms)",
+	blocking_session_id: "Bloqueando sessão",
+	cpu_time: "CPU (ms)",
+	total_elapsed_time: "Tempo total (ms)",
+	reads: "Leituras",
+	writes: "Escritas",
+	logical_reads: "Leituras lógicas",
+	query_hash: "Hash da consulta",
+	execution_count: "Execuções",
+	avg_elapsed_time_us: "Tempo médio (µs)",
+	avg_cpu_time_us: "CPU média (µs)",
+	avg_logical_reads: "Leituras lógicas médias",
+	total_physical_reads: "Leituras físicas",
+	last_execution_time: "Última execução",
+	path: "Arquivo",
+	size: "Tamanho (bytes)",
+	mtime_millis: "Modificado",
+};
+
+const DIRECT_NUMERIC_COLUMNS = new Set([
+	"page_count",
+	"execution_count",
+	"waiting_tasks_count",
+	"wait_time_ms",
+	"signal_wait_time_ms",
+	"resource_wait_time_ms",
+	"wait_time",
+	"cpu_time",
+	"total_elapsed_time",
+	"reads",
+	"writes",
+	"logical_reads",
+	"avg_logical_reads",
+	"total_physical_reads",
+	"avg_elapsed_time_us",
+	"avg_cpu_time_us",
+	"size",
+]);
+
+const DIRECT_MAX_TABLE_ROWS = 60;
+
+function humanizeColumnLabel(key) {
+	const known = DIRECT_COLUMN_LABELS[key];
+	if (known) return known;
+	return key.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatDirectCell(key, value) {
+	if (value === null || value === undefined) return "—";
+	if (key === "mtime_millis") {
+		const timestamp = Number(value);
+		const date = new Date(Number.isFinite(timestamp) ? timestamp : value);
+		if (!Number.isNaN(date.getTime()) && Number.isFinite(timestamp)) {
+			return date.toLocaleString("pt-BR");
+		}
+		return String(value);
+	}
+	if (typeof value === "number" && DIRECT_NUMERIC_COLUMNS.has(key)) {
+		return value.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+	}
+	if (
+		typeof value === "string" &&
+		DIRECT_NUMERIC_COLUMNS.has(key) &&
+		/^\d+(\.\d+)?$/.test(value)
+	) {
+		return Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+	}
+	return String(value);
+}
+
+function truncateCell(text, max = 60) {
+	return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+function buildDirectReport(message) {
+	const payload = message.directResult;
+	if (!payload || typeof payload !== "object") return null;
+	let inner = payload.result ?? payload;
+	const nested = inner?.result;
+	if (
+		!Array.isArray(inner?.rows ?? inner?.files) &&
+		nested &&
+		typeof nested === "object"
+	) {
+		inner = nested;
+	}
+	const rawRows = inner?.rows ?? inner?.files;
+	if (!Array.isArray(rawRows) || rawRows.length === 0) return null;
+
+	const objectRows = rawRows.filter(
+		(row) => row && typeof row === "object" && !Array.isArray(row),
+	);
+	if (!objectRows.length) return null;
+
+	const columns = [];
+	const seen = new Set();
+	for (const row of objectRows) {
+		for (const key of Object.keys(row)) {
+			if (!seen.has(key)) {
+				seen.add(key);
+				columns.push(key);
+			}
+		}
+	}
+
+	const header = columns
+		.map((key) => `<th>${escapeHtml(humanizeColumnLabel(key))}</th>`)
+		.join("");
+	const rowsHtml = objectRows
+		.slice(0, DIRECT_MAX_TABLE_ROWS)
+		.map((row) => {
+			const cells = columns
+				.map((key) => {
+					const raw = formatDirectCell(key, row[key]);
+					const display = truncateCell(raw);
+					const title =
+						display.length < raw.length ? ` title="${escapeHtml(raw)}"` : "";
+					return `<td${title}>${escapeHtml(display)}</td>`;
+				})
+				.join("");
+			return `<tr>${cells}</tr>`;
+		})
+		.join("");
+
+	const description =
+		typeof (inner?.description ?? payload.description) === "string" &&
+		(inner?.description ?? payload.description).trim()
+			? (inner?.description ?? payload.description).trim()
+			: "";
+	const total = objectRows.length;
+	const note =
+		total > DIRECT_MAX_TABLE_ROWS
+			? `<div class="chat-report-note">Mostrando ${DIRECT_MAX_TABLE_ROWS} de ${total} linhas.</div>`
+			: "";
+
+	return `<div class="chat-report">
+		${
+			description
+				? `<div class="chat-report-title">${escapeHtml(description)}</div>`
+				: ""
+		}
+		<div class="chat-table-wrap"><table class="chat-table"><thead><tr>${header}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
+		${note}
+		<details class="chat-raw-toggle"><summary>Ver JSON bruto</summary><pre>${escapeHtml(
+			message.content || "",
+		)}</pre></details>
+	</div>`;
+}
+
+function formatDirectResult(value) {
+	let text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+	if (text.length > DIRECT_RESULT_MAX_CHARS) {
+		text = `${text.slice(0, DIRECT_RESULT_MAX_CHARS)}\n... (resultado truncado)`;
+	}
+	return text;
+}
+
+async function runChatSuggestion(suggestion) {
+	resetChatError();
+	const agentId = $("#chat-agent").value;
+	if (!agentId) {
+		return showChatError("Nenhum agente conectado para executar.");
+	}
+	state.chat.busy = true;
+	$("#btn-chat-send").disabled = true;
+	$("#chat-input").disabled = true;
+	pushChatMessage({
+		role: "user",
+		content: suggestion.description || suggestion.label,
+		direct: true,
+	});
+	const assistantIndex = state.chat.messages.length;
+	pushChatMessage({
+		role: "assistant",
+		content: "",
+		toolEvents: [{ name: suggestion.action, ok: null }],
+		streaming: true,
+		direct: true,
+	});
+	try {
+		const body = await api(`/agents/${encodeURIComponent(agentId)}/checks`, {
+			method: "POST",
+			body: JSON.stringify({
+				action: suggestion.action,
+				parameters: suggestion.parameters ?? {},
+			}),
+		});
+		const toolEvents = state.chat.messages[assistantIndex].toolEvents || [];
+		toolEvents[0].ok = true;
+		updateChatMessage(assistantIndex, {
+			toolEvents,
+			content: formatDirectResult(body.result ?? body),
+			directResult: body.result ?? body,
+		});
+		await refreshAll();
+	} catch (error) {
+		const failedFetch = /Failed to fetch|NetworkError|network error/i.test(
+			error.message || "",
+		);
+		const toolEvents = state.chat.messages[assistantIndex].toolEvents || [];
+		toolEvents[0].ok = false;
+		toolEvents[0].error = failedFetch
+			? "conexao com o broker caiu durante a execucao; tente novamente"
+			: error.message;
+		updateChatMessage(assistantIndex, { toolEvents });
+		showChatError(
+			failedFetch
+				? "Falha na execucao: a conexao com o broker caiu durante a resposta; tente novamente."
+				: `Falha na execucao: ${error.message}`,
+		);
+	} finally {
+		state.chat.messages[assistantIndex].streaming = false;
+		renderChatHistory();
+		state.chat.busy = false;
+		$("#btn-chat-send").disabled = false;
+		$("#chat-input").disabled = false;
+		$("#chat-input").focus();
+	}
+}
+
+function wireChat() {
+	chatAgentOptions();
+	syncChatSettings();
+	$("#chat-settings").addEventListener("input", () => {
+		state.chat.llmConfig.base_url = $("#chat-base-url").value.trim();
+		state.chat.llmConfig.model = $("#chat-model").value.trim();
+		state.chat.llmConfig.api_key = $("#chat-api-key").value.trim();
+	});
+	$("#chat-form").addEventListener("submit", (event) => {
+		event.preventDefault();
+		if (!state.chat.busy) sendChatMessage();
+	});
+	$("#chat-suggestions").addEventListener("click", (event) => {
+		const button = event.target.closest(".chat-suggestion");
+		if (!button || state.chat.busy) return;
+		const suggestion = state.chat.suggestions?.[Number(button.dataset.index)];
+		if (!suggestion) return;
+		runChatSuggestion(suggestion);
+	});
+}
+
 function wireTabs() {
 	$$(".tab").forEach((tab) => {
 		tab.addEventListener("click", () => {
@@ -347,12 +921,17 @@ function wireTabs() {
 				if (isActive) panel.classList.remove("hidden");
 				else panel.classList.add("hidden");
 			});
+			if (tab.dataset.tab === "chat") {
+				chatAgentOptions();
+				syncChatSettings();
+			}
 		});
 	});
 }
 
 async function init() {
 	wireTabs();
+	wireChat();
 	$("#agent-detail").addEventListener("click", (event) => {
 		if (
 			event.target === $("#agent-detail") ||
