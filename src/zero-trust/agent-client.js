@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { createResultBuffer } from "../agent/result-buffer.js";
 
 export function parseBrokerTask(message) {
 	if (
@@ -53,6 +54,7 @@ export class ReverseAgentClient {
 		onAccepted,
 		reconnectMs = 5_000,
 		maxReconnectMs = 60_000,
+		resultBufferCapacity = 100,
 		metrics,
 		logger = console,
 	}) {
@@ -69,6 +71,11 @@ export class ReverseAgentClient {
 			stopped: false,
 			socket: null,
 			reconnectAttempt: 0,
+		});
+		this.resultBuffer = createResultBuffer({
+			capacity: resultBufferCapacity,
+			metrics,
+			logger,
 		});
 	}
 
@@ -95,6 +102,7 @@ export class ReverseAgentClient {
 			socket.send(
 				JSON.stringify({ type: "agent.hello", agent_id: this.agentId }),
 			);
+			this.#flushResults(socket);
 		});
 		socket.on("message", async (payload) => {
 			let message;
@@ -107,23 +115,19 @@ export class ReverseAgentClient {
 				if (message.type !== "task") return;
 				const task = parseBrokerTask(message);
 				const result = await this.executeTask(task);
-				socket.send(
-					JSON.stringify({
-						type: "task.result",
-						task_id: task.task_id,
-						status: "completed",
-						result,
-					}),
-				);
+				this.#sendResult({
+					type: "task.result",
+					task_id: task.task_id,
+					status: "completed",
+					result,
+				});
 			} catch (error) {
-				socket.send(
-					JSON.stringify({
-						type: "task.result",
-						task_id: message?.task?.task_id,
-						status: "failed",
-						error: error.message,
-					}),
-				);
+				this.#sendResult({
+					type: "task.result",
+					task_id: message?.task?.task_id,
+					status: "failed",
+					error: error.message,
+				});
 			}
 		});
 		socket.on("error", (error) =>
@@ -143,5 +147,28 @@ export class ReverseAgentClient {
 			);
 			setTimeout(() => this.#connect(), delay);
 		});
+	}
+
+	#sendResult(envelope) {
+		const payload = JSON.stringify(envelope);
+		if (this.socket?.readyState === WebSocket.OPEN) {
+			this.socket.send(payload);
+			return;
+		}
+		if (this.stopped) return;
+		this.resultBuffer.push(payload);
+		this.logger.warn(
+			`[tc-agent] broker indisponivel; resultado bufferizado (${this.resultBuffer.size} pendente(s))`,
+		);
+	}
+
+	#flushResults(socket) {
+		for (const payload of this.resultBuffer.drain()) {
+			if (socket.readyState !== WebSocket.OPEN) {
+				this.resultBuffer.push(payload);
+				continue;
+			}
+			socket.send(payload);
+		}
 	}
 }

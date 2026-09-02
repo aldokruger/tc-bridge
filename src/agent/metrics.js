@@ -18,6 +18,8 @@ export function createMetrics() {
 		updatesApplied: 0,
 		rollbacks: 0,
 		redactionFailures: 0,
+		bufferPushes: 0,
+		bufferDrops: 0,
 	};
 	const startedAt = Date.now();
 	let gate = null;
@@ -61,6 +63,12 @@ export function createMetrics() {
 		},
 		recordRedactionFailure() {
 			counters.redactionFailures += 1;
+		},
+		recordBufferPush() {
+			counters.bufferPushes += 1;
+		},
+		recordBufferDrop() {
+			counters.bufferDrops += 1;
 		},
 		async snapshot({ version = "unknown" } = {}) {
 			const memory = process.memoryUsage();
