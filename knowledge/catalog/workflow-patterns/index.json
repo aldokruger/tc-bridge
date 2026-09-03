@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "schema": {
+    "required_fields": ["pattern_id", "handler_id", "handler_type", "release"],
+    "optional_fields": ["arguments", "attachments", "privilege_flag", "notes"]
+  },
+  "patterns": []
+}

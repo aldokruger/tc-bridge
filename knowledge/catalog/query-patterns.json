@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "patterns": [
+    {
+      "id": "query-item-by-name",
+      "name": "Buscar Item por nome",
+      "query_kind": "saved-query",
+      "root_type": "Item",
+      "properties": ["object_name", "object_desc"],
+      "inputs": [{"name": "Name", "type": "string", "required": true}],
+      "releases": ["2606"],
+      "source_ref_id": "proj-query-001"
+    }
+  ]
+}

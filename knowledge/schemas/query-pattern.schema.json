@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryPattern",
+  "description": "Padrao de Saved Query aprovado localmente",
+  "type": "object",
+  "required": ["pattern_id", "query_kind", "root_type", "properties", "release"],
+  "properties": {
+    "pattern_id": { "type": "string", "minLength": 1 },
+    "query_kind": { "type": "string", "enum": ["saved-query", "soa-saved-query", "rest-query"] },
+    "root_type": { "type": "string", "minLength": 1 },
+    "properties": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "inputs": { "type": "array", "items": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    }},
+    "release": { "type": "string", "pattern": "^\\d{4}$" },
+    "source_ref_id": { "type": "string" },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false
+}

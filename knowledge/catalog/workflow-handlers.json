@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "release_compatibility": {
+    "min": "2412",
+    "max": "2606"
+  },
+  "handlers": [
+    {
+      "handler_id": "OOTB-EPM-auto-assign",
+      "handler_type": "action",
+      "name": "EPM-auto-assign",
+      "is_custom": false,
+      "arguments": [
+        { "name": "assignee", "type": "string", "required": true, "cardinality": "single", "description": "Grupo ou usuario responsavel" },
+        { "name": "notify", "type": "boolean", "required": false, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": false,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-set-rule-prerequisites",
+      "handler_type": "rule",
+      "name": "EPM-set-rule-prerequisites",
+      "is_custom": false,
+      "arguments": [
+        { "name": "property", "type": "string", "required": true, "cardinality": "single" },
+        { "name": "operator", "type": "string", "required": true, "cardinality": "single" },
+        { "name": "value", "type": "string", "required": true, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": false,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-trigger-action",
+      "handler_type": "action",
+      "name": "EPM-trigger-action",
+      "is_custom": false,
+      "arguments": [
+        { "name": "action_name", "type": "string", "required": true, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": false,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-attach-object",
+      "handler_type": "action",
+      "name": "EPM-attach-object",
+      "is_custom": false,
+      "arguments": [
+        { "name": "attachment_type", "type": "string", "required": true, "cardinality": "single" }
+      ],
+      "attachments": [
+        { "name": "target", "required": true }
+      ],
+      "privilege_flag": false,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-create-subprocess",
+      "handler_type": "action",
+      "name": "EPM-create-subprocess",
+      "is_custom": false,
+      "arguments": [
+        { "name": "template_name", "type": "string", "required": true, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": false,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-set-task-result",
+      "handler_type": "action",
+      "name": "EPM-set-task-result",
+      "is_custom": false,
+      "arguments": [
+        { "name": "result", "type": "string", "required": true, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": false,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-demote",
+      "handler_type": "action",
+      "name": "EPM-demote",
+      "is_custom": false,
+      "arguments": [
+        { "name": "target_state", "type": "string", "required": false, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": true,
+      "releases": ["2412", "2606"]
+    },
+    {
+      "handler_id": "OOTB-EPM-promote",
+      "handler_type": "action",
+      "name": "EPM-promote",
+      "is_custom": false,
+      "arguments": [
+        { "name": "target_state", "type": "string", "required": false, "cardinality": "single" }
+      ],
+      "attachments": [],
+      "privilege_flag": true,
+      "releases": ["2412", "2606"]
+    }
+  ]
+}

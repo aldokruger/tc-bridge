@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DiagnosticPattern",
+  "description": "Padrao de diagnostico com sintomas, evidencias e proximos checks",
+  "type": "object",
+  "required": ["pattern_id", "symptoms", "release"],
+  "properties": {
+    "pattern_id": { "type": "string", "minLength": 1 },
+    "symptoms": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "next_checks": { "type": "array", "items": { "type": "string" } },
+    "root_cause": { "type": "string" },
+    "resolution": { "type": "string" },
+    "release": { "type": "string", "pattern": "^\\d{4}$" },
+    "references": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

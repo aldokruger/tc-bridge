@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkflowPattern",
+  "description": "Padrao de workflow com handlers OOTB e customizados aprovados",
+  "type": "object",
+  "required": ["pattern_id", "handler_id", "handler_type", "release"],
+  "properties": {
+    "pattern_id": { "type": "string", "minLength": 1 },
+    "handler_id": { "type": "string", "minLength": 1 },
+    "handler_type": { "type": "string", "enum": ["action", "rule", "condition"] },
+    "arguments": { "type": "array", "items": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    }},
+    "attachments": { "type": "array" },
+    "privilege_flag": { "type": "boolean" },
+    "release": { "type": "string", "pattern": "^\\d{4}$" },
+    "notes": { "type": "string" }
+  },
+  "additionalProperties": false
+}

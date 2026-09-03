@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "schema": {
+    "required_fields": [
+      "pattern_id",
+      "hash",
+      "author",
+      "promoted_at",
+      "releases",
+      "sources"
+    ]
+  },
+  "patterns": []
+}

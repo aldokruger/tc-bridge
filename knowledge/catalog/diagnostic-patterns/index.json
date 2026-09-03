@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "schema": {
+    "required_fields": ["pattern_id", "symptoms", "evidence", "next_checks", "release"],
+    "optional_fields": ["root_cause", "resolution", "references"]
+  },
+  "patterns": []
+}

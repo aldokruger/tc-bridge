@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "schema": {
+    "required_fields": ["pattern_id", "category", "namespace_prefix", "release"],
+    "optional_fields": ["code_template", "build_config", "validation_rules", "notes"]
+  },
+  "patterns": []
+}
