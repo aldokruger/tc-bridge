@@ -2,6 +2,7 @@
 import fs from "node:fs/promises";
 import https from "node:https";
 import express from "express";
+import { createBrokerLocalTools } from "../src/chat-tools/broker-local-tools.js";
 import { createAdminConsoleApp } from "../src/zero-trust/admin-console.js";
 import { AgentBroker } from "../src/zero-trust/broker.js";
 import { createBrokerMcpApp } from "../src/zero-trust/cloud-mcp.js";
@@ -75,6 +76,22 @@ const mcpApp = createBrokerMcpApp({
 	capabilityTtlSeconds,
 });
 // Console admin deny-by-default: sem TC_BROKER_ADMIN_TOKEN nao ha rotas /admin.
+const allowedLocalTools = new Set(
+	(process.env.TC_BROKER_ALLOWED_LOCAL_TOOLS || "")
+		.split(/[,;]/)
+		.map((s) => s.trim())
+		.filter(Boolean),
+);
+const localToolHandlers = createBrokerLocalTools({
+	docsMcpUrl: process.env.TC_DOCS_MCP_URL,
+	docsMcpToken: process.env.TC_DOCS_MCP_TOKEN,
+	docsTimeoutMs: Number(process.env.TC_DOCS_TIMEOUT_MS || "10000"),
+	docsMaxResults: Number(process.env.TC_DOCS_MAX_RESULTS || "8"),
+	qmdKnowledgeEnabled: process.env.TC_QMD_KNOWLEDGE_ENABLED === "1",
+	engineeringDraftTtlSeconds: Number(
+		process.env.TC_ENGINEERING_DRAFT_TTL_SECONDS || "300",
+	),
+});
 const adminApp = adminToken
 	? createAdminConsoleApp({
 			adminToken,
@@ -82,6 +99,8 @@ const adminApp = adminToken
 			issuer: capabilityIssuer,
 			privateKey,
 			allowedActions: actionSet,
+			allowedLocalTools,
+			localToolHandlers,
 			subject: process.env.TC_BROKER_SUBJECT || "admin-console",
 			ttlSeconds: capabilityTtlSeconds,
 			version,
