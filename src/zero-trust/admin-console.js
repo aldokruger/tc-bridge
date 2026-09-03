@@ -6,7 +6,12 @@ import { createAgentActionAdapter } from "../chat-tools/agent-action-adapter.js"
 import { createLocalToolAdapter } from "../chat-tools/local-tool-adapter.js";
 import { createChatToolRegistry } from "../chat-tools/registry.js";
 import { createCapabilityTask } from "./cloud-mcp.js";
-import { runChatTurn } from "./llm-chat.js";
+import {
+	executeWorkflow,
+	QUICK_ACTIONS,
+	runChatTurn,
+	WORKFLOWS,
+} from "./llm-chat.js";
 
 const ADMIN_UI_DIR = fileURLToPath(new URL("./admin-ui", import.meta.url));
 
@@ -55,6 +60,7 @@ const chatSchema = z.object({
 		api_key: z.string().min(1),
 	}),
 	messages: z.array(chatMessageSchema).max(100),
+	context_id: z.string().optional(),
 });
 
 export function createAdminConsoleApp({
@@ -286,6 +292,102 @@ export function createAdminConsoleApp({
 				error: error.message,
 			});
 			return res.status(502).json({ error: error.message });
+		}
+	});
+
+	app.get("/v1/suggestions", requireSession, (_req, res) => {
+		res.json({
+			quickActions: QUICK_ACTIONS,
+			workflows: WORKFLOWS.map((w) => ({
+				id: w.id,
+				label: w.label,
+				description: w.description,
+				stepCount: w.steps.length,
+			})),
+		});
+	});
+
+	app.post("/v1/workflow", requireSession, async (req, res) => {
+		const body = req.body ?? {};
+		const { workflowId, agentId, llm } = body;
+		if (!workflowId || !agentId) {
+			return res
+				.status(400)
+				.json({ error: "workflowId e agentId sao obrigatorios" });
+		}
+		const workflow = WORKFLOWS.find((w) => w.id === workflowId);
+		if (!workflow) {
+			return res.status(404).json({ error: "workflow nao encontrado" });
+		}
+		if (!broker.agents.get(agentId)) {
+			return res.status(404).json({ error: "agente indisponivel" });
+		}
+		emitAudit({
+			event: "workflow.start",
+			agent_id: agentId,
+			workflow: workflowId,
+		});
+		res.writeHead(200, {
+			"Content-Type": "text/event-stream",
+			"Cache-Control": "no-store",
+			Connection: "keep-alive",
+			"X-Accel-Buffering": "no",
+		});
+		const sendEvent = (event) => {
+			if (res.destroyed || res.writableEnded) return;
+			res.write(`data: ${JSON.stringify(event)}\n\n`);
+		};
+		const heartbeat = setInterval(() => {
+			if (res.destroyed || res.writableEnded) return;
+			res.write(": keep-alive\n\n");
+		}, 15_000);
+		try {
+			const agentAdapter = createAgentActionAdapter({
+				broker,
+				agentId,
+				allowedActions,
+				issuer,
+				privateKey,
+				subject,
+				ttlSeconds,
+			});
+			const localAdapter = createLocalToolAdapter({ tools: localToolHandlers });
+			const toolRegistry = createChatToolRegistry({
+				localAdapter,
+				agentAdapter,
+			});
+			const dispatchTool = (toolName, rawArgs) =>
+				toolRegistry.execute({
+					name: toolName,
+					arguments: rawArgs,
+					executionContext: { agentId, broker },
+				});
+			const results = await executeWorkflow({
+				workflow,
+				agentId,
+				dispatchTool,
+				onEvent: sendEvent,
+			});
+			emitAudit({
+				event: "workflow.done",
+				agent_id: agentId,
+				workflow: workflowId,
+			});
+			sendEvent({ type: "workflow_done", results });
+			res.end();
+		} catch (error) {
+			emitAudit({
+				event: "workflow.failed",
+				agent_id: agentId,
+				workflow: workflowId,
+				error: error.message,
+			});
+			if (!res.destroyed && !res.writableEnded) {
+				sendEvent({ type: "error", error: error.message });
+				res.end();
+			}
+		} finally {
+			clearInterval(heartbeat);
 		}
 	});
 

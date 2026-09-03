@@ -8,6 +8,9 @@ const state = {
 	agents: [],
 	tasks: [],
 	audit: [],
+	quickActions: [],
+	workflows: [],
+	contextMemory: [],
 	chat: {
 		messages: [],
 		busy: false,
@@ -203,6 +206,7 @@ async function refreshAll() {
 		loadAgents(),
 		loadTasks(),
 		loadAudit(),
+		loadSuggestions(),
 	]);
 	renderOverview();
 	renderAgents();
@@ -210,6 +214,8 @@ async function refreshAll() {
 	renderAudit();
 	renderConfig();
 	renderChatSuggestions();
+	renderQuickActions();
+	renderWorkflowSelector();
 }
 
 async function loadHealth() {
@@ -233,6 +239,263 @@ async function loadTasks() {
 async function loadAudit() {
 	const body = await api("/audit?limit=50");
 	state.audit = body.events || [];
+}
+
+async function loadSuggestions() {
+	try {
+		const data = await api("/suggestions");
+		state.quickActions = data.quickActions || [];
+		state.workflows = data.workflows || [];
+	} catch {
+		state.quickActions = [];
+		state.workflows = [];
+	}
+}
+
+function renderQuickActions() {
+	const container = $("#quick-actions");
+	if (!container) return;
+	const actions = state.quickActions;
+	if (!actions.length) {
+		container.innerHTML = "";
+		return;
+	}
+	container.innerHTML = actions
+		.map(
+			(a) =>
+				`<button type="button" class="quick-action-btn" data-action-id="${escapeHtml(a.id)}" title="${escapeHtml(a.prompt)}">${escapeHtml(a.label)}</button>`,
+		)
+		.join("");
+}
+
+function renderWorkflowSelector() {
+	const select = $("#workflow-selector");
+	if (!select) return;
+	const workflows = state.workflows;
+	const firstOption = '<option value="">-- workflows --</option>';
+	select.innerHTML =
+		firstOption +
+		workflows
+			.map(
+				(w) =>
+					`<option value="${escapeHtml(w.id)}">${escapeHtml(w.label)} (${w.stepCount} etapas)</option>`,
+			)
+			.join("");
+}
+
+async function sendQuickAction(actionId) {
+	resetChatError();
+	const action = state.quickActions.find((a) => a.id === actionId);
+	if (!action) return;
+	const agentId = $("#chat-agent").value;
+	if (!agentId) return showChatError("Nenhum agente conectado.");
+	const llm = { ...state.chat.llmConfig };
+	llm.base_url = $("#chat-base-url").value.trim();
+	llm.model = $("#chat-model").value.trim();
+	llm.api_key = $("#chat-api-key").value.trim();
+	if (!llm.base_url || !llm.model) {
+		return showChatError("Preencha Base URL e Modelo da LLM.");
+	}
+	if (!llm.api_key) return showChatError("Informe a API key da LLM.");
+	state.chat.llmConfig = llm;
+	localStorage.setItem("tc_chat_base_url", llm.base_url);
+	localStorage.setItem("tc_chat_model", llm.model);
+	state.chat.busy = true;
+	$("#btn-chat-send").disabled = true;
+	$("#chat-input").disabled = true;
+	pushChatMessage({ role: "user", content: action.prompt });
+	const assistantIndex = state.chat.messages.length;
+	pushChatMessage({
+		role: "assistant",
+		content: "",
+		toolEvents: [],
+		streaming: true,
+	});
+	try {
+		const history = [{ role: "user", content: action.prompt }];
+		const response = await fetch(`${API}/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			body: JSON.stringify({ agent_id: agentId, llm, messages: history }),
+		});
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}));
+			throw new Error(body.error || `HTTP ${response.status}`);
+		}
+		if (!response.body) throw new Error("resposta sem corpo");
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = "";
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			const events = buffer.split("\n\n");
+			buffer = events.pop() ?? "";
+			for (const rawEvent of events) {
+				const line = rawEvent.trim();
+				if (!line.startsWith("data:")) continue;
+				let event;
+				try {
+					event = JSON.parse(line.slice(5).trim());
+				} catch {
+					continue;
+				}
+				if (event.type === "token") {
+					updateChatMessage(assistantIndex, {
+						content: state.chat.messages[assistantIndex].content + event.text,
+					});
+				} else if (event.type === "tool_call") {
+					const toolEvents =
+						state.chat.messages[assistantIndex].toolEvents || [];
+					toolEvents.push({ name: event.name, ok: null });
+					updateChatMessage(assistantIndex, { toolEvents });
+				} else if (event.type === "tool_result") {
+					const toolEvents =
+						state.chat.messages[assistantIndex].toolEvents || [];
+					const last = toolEvents.find(
+						(tool) => tool.name === event.name && tool.ok === null,
+					);
+					if (last) {
+						last.ok = event.ok;
+						last.error = event.error;
+					}
+					updateChatMessage(assistantIndex, { toolEvents });
+				} else if (event.type === "error") {
+					throw new Error(event.error || "erro no chat");
+				} else if (event.type === "end") {
+					break;
+				}
+			}
+		}
+	} catch (error) {
+		state.chat.messages[assistantIndex].streaming = false;
+		showChatError(`Falha: ${error.message}`);
+	} finally {
+		state.chat.messages[assistantIndex].streaming = false;
+		renderChatHistory();
+		state.chat.busy = false;
+		$("#btn-chat-send").disabled = false;
+		$("#chat-input").disabled = false;
+		$("#chat-input").focus();
+	}
+}
+
+async function startWorkflow(workflowId) {
+	resetChatError();
+	const workflow = state.workflows.find((w) => w.id === workflowId);
+	if (!workflow) return;
+	const agentId = $("#chat-agent").value;
+	if (!agentId) return showChatError("Nenhum agente conectado.");
+	state.chat.busy = true;
+	$("#btn-chat-send").disabled = true;
+	$("#chat-input").disabled = true;
+	pushChatMessage({
+		role: "user",
+		content: `Workflow: ${workflow.label}`,
+		direct: true,
+	});
+	const assistantIndex = state.chat.messages.length;
+	pushChatMessage({
+		role: "assistant",
+		content: "",
+		toolEvents: [],
+		streaming: true,
+		direct: true,
+	});
+	try {
+		const response = await fetch(`${API}/workflow`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			credentials: "same-origin",
+			body: JSON.stringify({ workflowId, agentId }),
+		});
+		if (!response.ok) {
+			const body = await response.json().catch(() => ({}));
+			throw new Error(body.error || `HTTP ${response.status}`);
+		}
+		if (!response.body) throw new Error("resposta sem corpo");
+		const reader = response.body.getReader();
+		const decoder = new TextDecoder();
+		let buffer = "";
+		let results = [];
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			const events = buffer.split("\n\n");
+			buffer = events.pop() ?? "";
+			for (const rawEvent of events) {
+				const line = rawEvent.trim();
+				if (!line.startsWith("data:")) continue;
+				let event;
+				try {
+					event = JSON.parse(line.slice(5).trim());
+				} catch {
+					continue;
+				}
+				if (event.type === "workflow_step") {
+					const toolEvents =
+						state.chat.messages[assistantIndex].toolEvents || [];
+					toolEvents.push({ name: event.tool, ok: null });
+					updateChatMessage(assistantIndex, { toolEvents });
+				} else if (event.type === "workflow_done") {
+					results = event.results || [];
+					const toolEvents =
+						state.chat.messages[assistantIndex].toolEvents || [];
+					for (const result of results) {
+						const entry = toolEvents.find(
+							(t) => t.name === result.tool && t.ok === null,
+						);
+						if (entry) {
+							entry.ok = result.ok;
+							entry.error = result.error;
+						}
+					}
+					updateChatMessage(assistantIndex, {
+						toolEvents,
+						content: `Workflow "${workflow.label}" concluido: ${results.filter((r) => r.ok).length}/${results.length} etapas OK`,
+					});
+				} else if (event.type === "error") {
+					throw new Error(event.error || "erro no workflow");
+				}
+			}
+		}
+		state.contextMemory = results;
+		renderContextMemory();
+		await refreshAll();
+	} catch (error) {
+		state.chat.messages[assistantIndex].streaming = false;
+		showChatError(`Falha no workflow: ${error.message}`);
+	} finally {
+		state.chat.messages[assistantIndex].streaming = false;
+		renderChatHistory();
+		state.chat.busy = false;
+		$("#btn-chat-send").disabled = false;
+		$("#chat-input").disabled = false;
+		$("#chat-input").focus();
+	}
+}
+
+function renderContextMemory() {
+	const panel = $("#context-memory-panel");
+	const toggle = $("#context-toggle");
+	if (!panel || !toggle) return;
+	if (!state.contextMemory.length) {
+		toggle.classList.add("hidden");
+		panel.classList.add("hidden");
+		return;
+	}
+	toggle.classList.remove("hidden");
+	const lines = state.contextMemory.map((entry) => {
+		const status = entry.ok ? "ok" : "erro";
+		const preview = entry.ok
+			? JSON.stringify(entry.result ?? {}).slice(0, 120)
+			: entry.error || "erro";
+		return `<div class="context-memory-entry"><span class="mono">${escapeHtml(entry.tool)}</span> <span class="badge ${entry.ok ? "ok" : "bad"}">${status}</span> <span class="muted">${escapeHtml(preview)}</span></div>`;
+	});
+	panel.innerHTML = lines.join("");
 }
 
 function renderOverview() {
@@ -906,6 +1169,20 @@ function wireChat() {
 		const suggestion = state.chat.suggestions?.[Number(button.dataset.index)];
 		if (!suggestion) return;
 		runChatSuggestion(suggestion);
+	});
+	$("#quick-actions").addEventListener("click", (event) => {
+		const button = event.target.closest(".quick-action-btn");
+		if (!button || state.chat.busy) return;
+		sendQuickAction(button.dataset.actionId);
+	});
+	$("#workflow-selector").addEventListener("change", (event) => {
+		const workflowId = event.target.value;
+		if (!workflowId || state.chat.busy) return;
+		startWorkflow(workflowId);
+		event.target.value = "";
+	});
+	$("#context-toggle").addEventListener("click", () => {
+		$("#context-memory-panel").classList.toggle("hidden");
 	});
 }
 

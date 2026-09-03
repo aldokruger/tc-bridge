@@ -57,6 +57,14 @@
 				<label for="chat-api-key">API key (nao e persistida; enviada ao broker a cada mensagem)</label>
 				<input id="chat-api-key" type="password" autocomplete="off" />
 			</form>
+			<div class="chat-toolbar">
+				<div id="quick-actions" class="quick-actions"></div>
+				<select id="workflow-selector" class="workflow-selector">
+					<option value="">-- workflows --</option>
+				</select>
+				<button id="context-toggle" class="context-memory-toggle hidden" type="button">Contexto</button>
+			</div>
+			<div id="context-memory-panel" class="context-memory-panel hidden"></div>
 			<div id="chat-history" class="chat-history" aria-live="polite"></div>
 			<div id="chat-suggestions" class="chat-suggestions hidden"></div>
 			<form id="chat-form" class="chat-form">

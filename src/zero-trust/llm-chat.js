@@ -451,4 +451,125 @@ export async function runChatTurn({
 	);
 }
 
+export const QUICK_ACTIONS = [
+	{
+		id: "agent-status",
+		label: "Status do agente",
+		prompt:
+			"Verifique o status do agente conectado, liste as paginas Chrome abertas e retorne um resumo do estado atual",
+	},
+	{
+		id: "host-diagnostics",
+		label: "Diagnostico host",
+		prompt:
+			"Execute diagnosticos de host: path_exists em D:\\upgrade, service_status do Teamcenter, e tcp_connect no banco de dados. Resuma os resultados",
+	},
+	{
+		id: "list-logs",
+		label: "Listar logs",
+		prompt:
+			"Liste os logs disponiveis no agente, mostre as ultimas 50 linhas do log mais recente e identifique erros",
+	},
+	{
+		id: "soa-query",
+		label: "Consultar SOA",
+		prompt:
+			"Execute preflight e connection_health no Teamcenter. Se houver erros, explique o que esta acontecendo",
+	},
+	{
+		id: "search-docs",
+		label: "Buscar docs",
+		prompt:
+			"Busque na documentacao sobre configuracao de preferencias Teamcenter e retorne um resumo",
+	},
+];
+
+export const WORKFLOWS = [
+	{
+		id: "upgrade-check",
+		label: "Verificacao de upgrade",
+		description: "Verifica pre-requisitos: diretorios, logs, banco e SOA",
+		steps: [
+			{
+				tool: "diagnostic_run",
+				params: { check: "path_exists", remote_path: "D:\\upgrade" },
+			},
+			{ tool: "teamcenter_logs_read", params: { operation: "list" } },
+			{ tool: "database_diagnostic", params: { check: "database_files" } },
+			{ tool: "teamcenter_soa_preflight", params: {} },
+		],
+	},
+	{
+		id: "full-diagnostics",
+		label: "Diagnostico completo",
+		description: "Executa todos os diagnosticos disponiveis",
+		steps: [
+			{
+				tool: "diagnostic_run",
+				params: { check: "path_exists", remote_path: "D:\\upgrade" },
+			},
+			{
+				tool: "diagnostic_run",
+				params: { check: "service_status", service_name: "Teamcenter" },
+			},
+			{ tool: "database_diagnostic", params: { check: "database_files" } },
+			{ tool: "database_diagnostic", params: { check: "waits" } },
+			{ tool: "teamcenter_logs_read", params: { operation: "list" } },
+		],
+	},
+	{
+		id: "soa-health",
+		label: "Health check SOA",
+		description: "Verifica saude completa do Teamcenter SOA",
+		steps: [
+			{ tool: "teamcenter_soa_preflight", params: {} },
+			{ tool: "teamcenter_soa_connection_health", params: {} },
+			{ tool: "teamcenter_soa_session_context", params: {} },
+		],
+	},
+];
+
+const CONTEXT_MEMORY_MAX = 10;
+const contextMemory = new Map();
+
+export function getContextMemory(agentId) {
+	return contextMemory.get(agentId) || [];
+}
+
+export function setContextMemory(agentId, toolName, result) {
+	if (!contextMemory.has(agentId)) contextMemory.set(agentId, []);
+	const entries = contextMemory.get(agentId);
+	entries.push({ tool: toolName, result, at: Date.now() });
+	if (entries.length > CONTEXT_MEMORY_MAX) entries.shift();
+}
+
+export async function executeWorkflow({
+	workflow,
+	agentId,
+	dispatchTool,
+	onEvent,
+}) {
+	const results = [];
+	for (let i = 0; i < workflow.steps.length; i++) {
+		const step = workflow.steps[i];
+		onEvent?.({
+			type: "workflow_step",
+			step: i + 1,
+			total: workflow.steps.length,
+			tool: step.tool,
+		});
+		try {
+			const result = await dispatchTool(
+				step.tool,
+				JSON.stringify(step.params ?? {}),
+			);
+			results.push({ tool: step.tool, ok: true, result });
+			setContextMemory(agentId, step.tool, result);
+		} catch (error) {
+			results.push({ tool: step.tool, ok: false, error: error.message });
+		}
+	}
+	return results;
+}
+
 export { DEFAULT_MAX_ROUNDS };
