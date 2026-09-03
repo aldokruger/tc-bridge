@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "tc_broker": {
+      "type": "streamable-http",
+      "url": "https://these-chester-spend-minnesota.trycloudflare.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TC_BROKER_MCP_TOKEN}"
+      }
+    }
+  }
+}
