@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { analyzeProject } from "./bmide/analyzer.js";
 
-// Leitor do modelo BMIDE (default.xml) de um ambiente Teamcenter. Somente
-// leitura: o arquivo precisa estar dentro dos paths permitidos (whitelist de
-// leitura e validada na tool, em tools.js). O formato do default.xml varia
-// entre versoes e templates, entao a extracao e tolerante a namespace e a
-// hifen/underscore nos nomes de tag, e o resultado carrega contagens para o
-// agente decidir se precisa de um grep mais fino no arquivo bruto.
+// Leitor do modelo BMIDE de um ambiente Teamcenter.
+// - readBmideModel (legado): lê default.xml via regex, retorna contagens.
+// - analyzeBmideProject (novo): analyzer completo (Fases 0-4 do plan).
+// Consumidores existentes (tools.js, engineering/assistant.js) continuam
+// usando readBmideModel sem alteração.
 
 const MAX_FILE_BYTES = 256 * 1024 * 1024;
 const MAX_ITEMS_PER_LIST = 5_000;
@@ -140,3 +140,5 @@ export async function readBmideModel(tcDataPath) {
 	}
 	return shapeResult(readText(buffer), sourceFile, buffer.length);
 }
+
+export { analyzeProject as analyzeBmideProject };
