@@ -310,6 +310,8 @@ function actionToToolName(action) {
 }
 
 // Roda o turno de chat: loop LLM <-> dispatch. Emite eventos de progresso via onEvent.
+// Quando toolRegistry e fornecido, usa-o para listar e executar tools (locais ou remotas).
+// Caso contrario, mantem o comportamento legado por compatibilidade (plano, secao 7.1).
 export async function runChatTurn({
 	broker,
 	agentId,
@@ -322,6 +324,7 @@ export async function runChatTurn({
 	messages,
 	signal,
 	onEvent,
+	toolRegistry,
 }) {
 	const { base_url: baseUrl, model, api_key: apiKey } = llm ?? {};
 	if (!baseUrl || !model) {
@@ -335,7 +338,9 @@ export async function runChatTurn({
 	if (!broker.agents.get(agentId)) {
 		throw new Error(`Agente indisponivel: ${agentId}`);
 	}
-	const tools = buildChatTools(allowedActions);
+	const tools = toolRegistry
+		? toolRegistry.list()
+		: buildChatTools(allowedActions);
 	const providerMessages = [];
 	for (const message of messages) {
 		const mapped = toProviderMessage(message);
@@ -344,6 +349,13 @@ export async function runChatTurn({
 	const url = chatCompletionsUrl(baseUrl);
 	const { createCapabilityTask } = await import("./cloud-mcp.js");
 	const dispatchTool = async (toolName, rawArguments) => {
+		if (toolRegistry) {
+			return toolRegistry.execute({
+				name: toolName,
+				arguments: rawArguments,
+				executionContext: { agentId, broker },
+			});
+		}
 		const action = [...allowedActions].find(
 			(candidate) => actionToToolName(candidate) === toolName,
 		);

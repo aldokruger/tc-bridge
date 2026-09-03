@@ -2,6 +2,9 @@ import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { z } from "zod";
+import { createAgentActionAdapter } from "../chat-tools/agent-action-adapter.js";
+import { createLocalToolAdapter } from "../chat-tools/local-tool-adapter.js";
+import { createChatToolRegistry } from "../chat-tools/registry.js";
 import { createCapabilityTask } from "./cloud-mcp.js";
 import { runChatTurn } from "./llm-chat.js";
 
@@ -60,6 +63,8 @@ export function createAdminConsoleApp({
 	issuer,
 	privateKey,
 	allowedActions,
+	allowedLocalTools = new Set(),
+	localToolHandlers = [],
 	subject = "admin-console",
 	ttlSeconds = 60,
 	version = "0.0.0",
@@ -321,6 +326,20 @@ export function createAdminConsoleApp({
 			res.write(": keep-alive\n\n");
 		}, 15_000);
 		try {
+			const agentAdapter = createAgentActionAdapter({
+				broker,
+				agentId,
+				allowedActions,
+				issuer,
+				privateKey,
+				subject,
+				ttlSeconds,
+			});
+			const localAdapter = createLocalToolAdapter({ tools: localToolHandlers });
+			const toolRegistry = createChatToolRegistry({
+				localAdapter,
+				agentAdapter,
+			});
 			await runChatTurn({
 				broker,
 				agentId,
@@ -333,6 +352,7 @@ export function createAdminConsoleApp({
 				messages,
 				signal: abortController.signal,
 				onEvent: sendEvent,
+				toolRegistry,
 			});
 			emitAudit({
 				event: "chat.done",
