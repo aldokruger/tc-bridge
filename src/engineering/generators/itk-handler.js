@@ -1,0 +1,112 @@
+// Gerador de skeleton de ITK workflow handler (plano, secao 10.4).
+// Gera funcao de registro, namespace, tratamento de erro e liberacao de recursos.
+
+import crypto from "node:crypto";
+
+export function generateItkHandlerSkeleton({
+	requirements,
+	release,
+	environmentId,
+	constraints = {},
+}) {
+	const draftId = `draft-${crypto.randomUUID()}`;
+	const namespacePrefix = constraints.namespace_prefix || "custom";
+	const handlerName = constraints.handler_name || `${namespacePrefix}_handler`;
+	const libraryName = constraints.library_name || `${namespacePrefix}_actions`;
+
+	const code = [
+		`#include <tc/tc.h>`,
+		`#include <epm/epm.h>`,
+		`#include <stdarg.h>`,
+		`#include "${handlerName}.h"`,
+		``,
+		`#define NAMESPACE "${namespacePrefix}"`,
+		``,
+		`/*`,
+		` * Handler: ${handlerName}`,
+		` * Release alvo: ${release}`,
+		` * Ambiente: ${environmentId || "nao especificado"}`,
+		` * Requisito: ${requirements.replace(/\n/g, " ").slice(0, 200)}`,
+		` * Gerado como rascunho; requer revisao e build controlado.`,
+		` */`,
+		``,
+		`int ${handlerName}(EPM_action_message_t msg) {`,
+		`    int ifail = ITK_ok;`,
+		`    tag_t rootTask = NULLTAG;`,
+		`    int nAttachments = 0;`,
+		`    tag_t* attachments = NULL;`,
+		``,
+		`    ifail = EPM_ask_root_task(msg.task, &rootTask);`,
+		`    if (ifail != ITK_ok) {`,
+		`        TC_write_syslog("${handlerName}: falha ao obter root task\\n");`,
+		`        return ifail;`,
+		`    }`,
+		``,
+		`    ifail = EPM_ask_attachments(rootTask, EPM_target_attachment, &nAttachments, &attachments);`,
+		`    if (ifail != ITK_ok) {`,
+		`        TC_write_syslog("${handlerName}: falha ao obter anexos\\n");`,
+		`        return ifail;`,
+		`    }`,
+		``,
+		`    /* Logica do handler (rascunho) */`,
+		`    for (int i = 0; i < nAttachments; i++) {`,
+		`        /* Processar anexo attachments[i] */`,
+		`    }`,
+		``,
+		`    /* Liberacao de recursos */`,
+		`    if (attachments != NULL) {`,
+		`        MEM_free(attachments);`,
+		`    }`,
+		`    return ITK_ok;`,
+		`}`,
+		``,
+		`/* Funcao de registro */`,
+		`int ${namespacePrefix}_register_handlers() {`,
+		`    int ifail = EPM_register_action_handler(`,
+		`        "${handlerName}",`,
+		`        "${requirements.replace(/"/g, '\\"').slice(0, 100)}",`,
+		`        ${handlerName}`,
+		`    );`,
+		`    return ifail;`,
+		`}`,
+		``,
+		`#ifdef __cplusplus`,
+		`extern "C"`,
+		`#endif`,
+		`int ${namespacePrefix}_init_module() {`,
+		`    return ${namespacePrefix}_register_handlers();`,
+		`}`,
+	].join("\n");
+
+	return {
+		draft_id: draftId,
+		schema_version: 1,
+		artifact_kind: "itk",
+		target_release: release,
+		environment_id: environmentId,
+		status: "draft",
+		requirements,
+		content: {
+			handlerName,
+			libraryName,
+			namespacePrefix,
+			code,
+			language: "c",
+			targetRelease: release,
+			buildSteps: [
+				`Compilar contra TC_ROOT da release ${release}`,
+				`Linkar com bibliotecas ITK (tccore, epm)`,
+				`Registrar DLL/SO no template de workflow`,
+			],
+		},
+		assumptions: [
+			"Skeleton gerado; logica de negocio deve ser implementada",
+			"Build e registro exigem ambiente controlado",
+			"Liberacao de recursos obrigatoria (MEM_free)",
+		],
+		source_refs: [],
+		environment_evidence_refs: [],
+		validation_findings: [],
+		created_at: new Date().toISOString(),
+	};
+}
